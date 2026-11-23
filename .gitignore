@@ -1,0 +1,13 @@
+# Plannen van de school: nooit in deze publieke repo
+plannen/
+*.pdf
+!data/testgebouw/*.pdf
+!data/kaai/QR_kaai.pdf
+
+# Xcode (het project wordt gemaakt met xcodegen)
+ios/*.xcodeproj/
+xcuserdata/
+DerivedData/
+build/
+.DS_Store
+__pycache__/
