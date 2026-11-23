@@ -1,0 +1,421 @@
+{
+  "formaat": "binnennav-graaf",
+  "versie": 1,
+  "gebouw": {
+    "id": "testgebouw",
+    "naam": "Testgebouw"
+  },
+  "verdiepingen": [
+    {
+      "niveau": 0,
+      "naam": "Verdieping 0",
+      "plan": {
+        "bestand": "testgebouw_v0.png",
+        "breedtePx": 1100,
+        "hoogtePx": 900,
+        "meterPerPixel": 0.02,
+        "oorsprongPx": [
+          100,
+          300
+        ]
+      }
+    },
+    {
+      "niveau": 1,
+      "naam": "Verdieping 1",
+      "plan": {
+        "bestand": "testgebouw_v1.png",
+        "breedtePx": 1100,
+        "hoogtePx": 900,
+        "meterPerPixel": 0.02,
+        "oorsprongPx": [
+          100,
+          300
+        ]
+      }
+    }
+  ],
+  "knopen": [
+    {
+      "id": "B1",
+      "naam": "B1",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 1,
+      "z": -1,
+      "qr": {
+        "code": "BINNENNAV:B1",
+        "normaal": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "B2",
+      "naam": "B2",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 5,
+      "z": 1,
+      "qr": {
+        "code": "BINNENNAV:B2",
+        "normaal": [
+          0,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "B3",
+      "naam": "B3",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 9,
+      "z": -1,
+      "qr": {
+        "code": "BINNENNAV:B3",
+        "normaal": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "B4",
+      "naam": "B4",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 13,
+      "z": 1,
+      "qr": {
+        "code": "BINNENNAV:B4",
+        "normaal": [
+          0,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "B5",
+      "naam": "B5",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 17,
+      "z": 3,
+      "qr": {
+        "code": "BINNENNAV:B5",
+        "normaal": [
+          -1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "B6",
+      "naam": "B6",
+      "soort": "lokaal",
+      "verdieping": 0,
+      "x": 16,
+      "z": 7.5,
+      "qr": {
+        "code": "BINNENNAV:B6",
+        "normaal": [
+          0,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "G1",
+      "naam": "Gang bij B1",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 1,
+      "z": 0
+    },
+    {
+      "id": "G2",
+      "naam": "Gang bij B2",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 5,
+      "z": 0
+    },
+    {
+      "id": "G3",
+      "naam": "Gang bij B3",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 9,
+      "z": 0
+    },
+    {
+      "id": "G4",
+      "naam": "Gang bij B4",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 13,
+      "z": 0
+    },
+    {
+      "id": "H",
+      "naam": "Hoek",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 16,
+      "z": 0
+    },
+    {
+      "id": "G5",
+      "naam": "Gang bij B5",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 16,
+      "z": 3
+    },
+    {
+      "id": "G6",
+      "naam": "Gang bij trap",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 16,
+      "z": 6
+    },
+    {
+      "id": "G7",
+      "naam": "Einde zijgang",
+      "soort": "gang",
+      "verdieping": 0,
+      "x": 16,
+      "z": 7
+    },
+    {
+      "id": "T0",
+      "naam": "Trap (verdieping 0)",
+      "soort": "trap",
+      "verdieping": 0,
+      "x": 14.5,
+      "z": 6
+    },
+    {
+      "id": "B11",
+      "naam": "B11",
+      "soort": "lokaal",
+      "verdieping": 1,
+      "x": 2,
+      "z": -1,
+      "qr": {
+        "code": "BINNENNAV:B11",
+        "normaal": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "B12",
+      "naam": "B12",
+      "soort": "lokaal",
+      "verdieping": 1,
+      "x": 6,
+      "z": 1,
+      "qr": {
+        "code": "BINNENNAV:B12",
+        "normaal": [
+          0,
+          -1
+        ]
+      }
+    },
+    {
+      "id": "B13",
+      "naam": "B13",
+      "soort": "lokaal",
+      "verdieping": 1,
+      "x": 10,
+      "z": -1,
+      "qr": {
+        "code": "BINNENNAV:B13",
+        "normaal": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "B14",
+      "naam": "B14",
+      "soort": "lokaal",
+      "verdieping": 1,
+      "x": 17,
+      "z": 3,
+      "qr": {
+        "code": "BINNENNAV:B14",
+        "normaal": [
+          -1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "G11",
+      "naam": "Gang bij B11",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 2,
+      "z": 0
+    },
+    {
+      "id": "G12",
+      "naam": "Gang bij B12",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 6,
+      "z": 0
+    },
+    {
+      "id": "G13",
+      "naam": "Gang bij B13",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 10,
+      "z": 0
+    },
+    {
+      "id": "H1",
+      "naam": "Hoek",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 16,
+      "z": 0
+    },
+    {
+      "id": "G14",
+      "naam": "Gang bij B14",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 16,
+      "z": 3
+    },
+    {
+      "id": "G15",
+      "naam": "Gang bij trap",
+      "soort": "gang",
+      "verdieping": 1,
+      "x": 16,
+      "z": 6
+    },
+    {
+      "id": "T1",
+      "naam": "Trap (verdieping 1)",
+      "soort": "trap",
+      "verdieping": 1,
+      "x": 14.5,
+      "z": 6
+    }
+  ],
+  "verbindingen": [
+    {
+      "van": "B1",
+      "naar": "G1"
+    },
+    {
+      "van": "B2",
+      "naar": "G2"
+    },
+    {
+      "van": "B3",
+      "naar": "G3"
+    },
+    {
+      "van": "B4",
+      "naar": "G4"
+    },
+    {
+      "van": "B5",
+      "naar": "G5"
+    },
+    {
+      "van": "B6",
+      "naar": "G7"
+    },
+    {
+      "van": "G1",
+      "naar": "G2"
+    },
+    {
+      "van": "G2",
+      "naar": "G3"
+    },
+    {
+      "van": "G3",
+      "naar": "G4"
+    },
+    {
+      "van": "G4",
+      "naar": "H"
+    },
+    {
+      "van": "H",
+      "naar": "G5"
+    },
+    {
+      "van": "G5",
+      "naar": "G6"
+    },
+    {
+      "van": "G6",
+      "naar": "G7"
+    },
+    {
+      "van": "G6",
+      "naar": "T0"
+    },
+    {
+      "van": "B11",
+      "naar": "G11"
+    },
+    {
+      "van": "B12",
+      "naar": "G12"
+    },
+    {
+      "van": "B13",
+      "naar": "G13"
+    },
+    {
+      "van": "B14",
+      "naar": "G14"
+    },
+    {
+      "van": "G11",
+      "naar": "G12"
+    },
+    {
+      "van": "G12",
+      "naar": "G13"
+    },
+    {
+      "van": "G13",
+      "naar": "H1"
+    },
+    {
+      "van": "H1",
+      "naar": "G14"
+    },
+    {
+      "van": "G14",
+      "naar": "G15"
+    },
+    {
+      "van": "G15",
+      "naar": "T1"
+    },
+    {
+      "van": "T0",
+      "naar": "T1",
+      "kost": 12
+    }
+  ]
+}

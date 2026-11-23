@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plattegrondeditor</title>
+<!-- Bibliotheken staan lokaal in lib/ zodat de editor ook offline werkt. -->
+<script src="lib/pdf.min.js"></script>
+<script src="lib/pdf.worker.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<script src="lib/qrcode.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7; --paneel: #ffffff; --tekst: #1d2330; --zacht: #667085; --rand: #d9dde5;
+    --accent: #2563eb; --fout: #c0262d; --waarsch: #b7791f; --ok: #15803d;
+    --lokaal: #2563eb; --gang: #6b7280; --trap: #d97706; --lift: #7c3aed; --qr: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161b; --paneel: #1d2027; --tekst: #e6e8ee; --zacht: #9aa3b2; --rand: #333845;
+      --accent: #5b8cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tekst);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #app { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: auto 1fr; height: 100vh; }
+  header { grid-column: 1 / 3; display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+    padding: 8px 10px; background: var(--paneel); border-bottom: 1px solid var(--rand); }
+  header h1 { font-size: 15px; margin: 0 10px 0 0; }
+  .gereedschap { display: flex; gap: 4px; flex-wrap: wrap; }
+  button, select, input { font: inherit; color: inherit; }
+  button { background: var(--paneel); border: 1px solid var(--rand); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.actief { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primair { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button kbd { font-size: 10px; opacity: .65; margin-left: 3px; }
+  .spacer { flex: 1; }
+  #canvasVak { position: relative; overflow: hidden; background: #e9ebef; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) #canvasVak { background: #0d0f13; } }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #hint { position: absolute; left: 10px; bottom: 10px; right: 10px; pointer-events: none;
+    background: rgba(20,22,27,.82); color: #fff; padding: 7px 10px; border-radius: 8px; font-size: 13px; }
+  #coord { position: absolute; right: 10px; top: 10px; background: rgba(20,22,27,.75); color: #fff;
+    padding: 3px 8px; border-radius: 6px; font: 12px ui-monospace, Menlo, monospace; pointer-events: none; }
+  aside { overflow-y: auto; background: var(--paneel); border-left: 1px solid var(--rand); padding: 10px 12px 40px; }
+  aside section { border-bottom: 1px solid var(--rand); padding: 10px 0; }
+  aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--zacht); margin: 0 0 8px; }
+  label { display: block; margin: 6px 0 2px; color: var(--zacht); font-size: 12px; }
+  input[type=text], input[type=number], select { width: 100%; padding: 5px 7px; border: 1px solid var(--rand);
+    border-radius: 6px; background: var(--bg); }
+  .rij { display: flex; gap: 6px; align-items: center; }
+  .rij > * { flex: 1; }
+  .rij > button { flex: 0 0 auto; }
+  .klein { font-size: 12px; color: var(--zacht); }
+  .melding { padding: 2px 0; font-size: 13px; }
+  .fout { color: var(--fout); } .waarsch { color: var(--waarsch); } .ok { color: var(--ok); }
+  ul.lijst { list-style: none; margin: 4px 0; padding: 0; }
+  ul.lijst li { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; gap: 6px; }
+  .verborgen { display: none !important; }
+  .legende span { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 12px; }
+  .legende i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  @media (max-width: 760px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: auto 60vh auto; height: auto; }
+    header { grid-column: 1; }
+    aside { border-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Plattegrondeditor</h1>
+    <div class="gereedschap" id="gereedschap"></div>
+    <span class="spacer"></span>
+    <button id="knopOngedaan" title="Ongedaan maken (Ctrl+Z)">↶</button>
+    <button id="knopNieuw">Nieuw</button>
+    <button id="knopImport">JSON openen…</button>
+    <button id="knopExport" class="primair">JSON exporteren</button>
+    <button id="knopQR">QR-codes (PDF)</button>
+    <input type="file" id="bestandJSON" accept=".json,application/json" class="verborgen">
+    <input type="file" id="bestandPlan" accept="image/*,.pdf,application/pdf" class="verborgen">
+  </header>
+
+  <div id="canvasVak">
+    <canvas id="doek"></canvas>
+    <div id="coord"></div>
+    <div id="hint"></div>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Gebouw</h2>
+      <label for="gebouwNaam">Naam</label>
+      <input type="text" id="gebouwNaam" placeholder="bv. EhB Kaai">
+      <label for="gebouwID">Id (kleine letters, zonder spaties)</label>
+      <input type="text" id="gebouwID" placeholder="bv. ehb-kaai">
+    </section>
+
+    <section>
+      <h2>Verdieping</h2>
+      <div class="rij">
+        <select id="verdiepingKeuze"></select>
+        <button id="knopVerdiepingPlus" title="Verdieping toevoegen">+</button>
+        <button id="knopVerdiepingMin" title="Verdieping verwijderen">−</button>
+      </div>
+      <div class="rij">
+        <div><label for="verdiepingNaam">Naam</label><input type="text" id="verdiepingNaam"></div>
+        <div style="flex:0 0 80px"><label for="verdiepingNiveau">Niveau</label><input type="number" id="verdiepingNiveau" step="1"></div>
+      </div>
+      <div style="margin-top:8px" class="rij">
+        <button id="knopPlanLaden">Plan laden (afbeelding of PDF)…</button>
+      </div>
+      <div id="planInfo" class="klein" style="margin-top:6px"></div>
+      <div id="schaalInfo" class="melding" style="margin-top:4px"></div>
+      <div id="schaalInvoer" class="verborgen" style="margin-top:6px">
+        <label for="schaalMeter">Echte afstand tussen de 2 punten (meter)</label>
+        <div class="rij">
+          <input type="number" id="schaalMeter" min="0.01" step="0.01" placeholder="bv. 5">
+          <button id="knopSchaalOK" class="primair">Toepassen</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="selectieVak">
+      <h2>Selectie</h2>
+      <div id="geenSelectie" class="klein">Klik op een punt om het te bewerken.</div>
+      <div id="knoopEditor" class="verborgen">
+        <div class="rij">
+          <div><label for="knoopID">Id (komt in de QR-code)</label><input type="text" id="knoopID"></div>
+          <div><label for="knoopSoort">Soort</label>
+            <select id="knoopSoort">
+              <option value="lokaal">Lokaal (deur)</option>
+              <option value="gang">Gang</option>
+              <option value="trap">Trap</option>
+              <option value="lift">Lift</option>
+            </select>
+          </div>
+        </div>
+        <label for="knoopNaam">Naam (wat de gebruiker ziet en zoekt)</label>
+        <input type="text" id="knoopNaam">
+        <div id="qrVak">
+          <label><input type="checkbox" id="knoopHeeftQR"> QR-code naast deze deur</label>
+          <div class="rij" id="qrHoekRij">
+            <div><label for="knoopQRHoek">Richting QR (graden, 0 = →, 90 = ↓)</label><input type="number" id="knoopQRHoek" step="1"></div>
+          </div>
+          <div class="rij" style="margin-top:6px" id="qrKnoppen">
+            <button data-hoek="270" title="naar boven">↑</button>
+            <button data-hoek="0" title="naar rechts">→</button>
+            <button data-hoek="90" title="naar onder">↓</button>
+            <button data-hoek="180" title="naar links">←</button>
+          </div>
+          <div class="klein" style="margin-top:4px">De pijl wijst van de muur de gang in (loodrecht op de muur waar de code hangt).</div>
+        </div>
+        <div id="verdiepingLinkVak">
+          <label>Verbonden met andere verdiepingen</label>
+          <ul class="lijst" id="verdiepingLinks"></ul>
+          <div class="rij">
+            <select id="linkDoel"></select>
+            <input type="number" id="linkKost" placeholder="kost" style="flex:0 0 70px" min="0" step="1" title="Extra kost in 'meter' (leeg = 10 per verdieping)">
+            <button id="knopLink">Verbind</button>
+          </div>
+        </div>
+        <div class="klein" id="knoopPositie" style="margin-top:6px"></div>
+        <div style="margin-top:8px"><button id="knopKnoopWeg" class="fout">Punt verwijderen</button></div>
+      </div>
+      <div id="verbindingEditor" class="verborgen">
+        <div id="verbindingInfo" class="melding"></div>
+        <label for="verbindingKost">Kost (leeg = lengte in meter)</label>
+        <input type="number" id="verbindingKost" min="0" step="0.1">
+        <div style="margin-top:8px"><button id="knopVerbindingWeg" class="fout">Verbinding verwijderen</button></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Route testen</h2>
+      <div id="routeInfo" class="klein">Kies het gereedschap „Route” en klik op 2 punten.</div>
+    </section>
+
+    <section>
+      <h2>Controle</h2>
+      <div id="controle"></div>
+    </section>
+
+    <section>
+      <h2>Legende</h2>
+      <div class="legende">
+        <span><i style="background:var(--lokaal)"></i>lokaal</span>
+        <span><i style="background:var(--gang)"></i>gang</span>
+        <span><i style="background:var(--trap)"></i>trap</span>
+        <span><i style="background:var(--lift)"></i>lift</span>
+        <span><i style="background:var(--qr)"></i>QR-richting</span>
+      </div>
+      <p class="klein">Muiswiel = zoomen · slepen op een lege plek = verschuiven · Shift bij plaatsen = recht t.o.v. het geselecteerde punt · Esc = stoppen · Delete = selectie wissen.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+"use strict";
+
+// ---------------------------------------------------------------------------
+// Constanten
+// ---------------------------------------------------------------------------
+const FORMAAT = "binnennav-graaf";
+const VERSIE = 1;
+const QR_PREFIX = "BINNENNAV:";
+const OPSLAG_SLEUTEL = "binnennav-editor-v1";
+const SOORTEN = ["lokaal", "gang", "trap", "lift"];
+const ID_PREFIX = { lokaal: "L", gang: "G", trap: "T", lift: "F" };
+
+const GEREEDSCHAP = [
+  { id: "selecteer",  label: "Selecteer", toets: "V", hint: "Klik op een punt of verbinding om te bewerken. Sleep een punt om het te verplaatsen, sleep op een lege plek om te verschuiven." },
+  { id: "schaal",     label: "Schaal",    toets: "S", hint: "Klik op 2 punten waarvan je de echte afstand kent (bv. de uiteinden van de schaalbalk), en vul rechts de afstand in." },
+  { id: "oorsprong",  label: "Oorsprong", toets: "O", hint: "Klik op het punt dat (0, 0) wordt. Kies op elke verdieping hetzelfde fysieke punt (bv. een hoek van de trappenhal)." },
+  { id: "lokaal",     label: "Lokaal",    toets: "L", hint: "Klik op de deur van een lokaal (op de muur, waar de QR-code komt). Verbind het daarna met de gang." },
+  { id: "gang",       label: "Gang",      toets: "G", hint: "Klik in het midden van de gang: bij elke deur, elke bocht en elk kruispunt een punt." },
+  { id: "trap",       label: "Trap",      toets: "T", hint: "Klik op een trap. Verbind hem rechts met de trap op de andere verdieping." },
+  { id: "lift",       label: "Lift",      toets: "F", hint: "Klik op een lift. Verbind hem rechts met de lift op de andere verdieping." },
+  { id: "verbinding", label: "Verbinding",toets: "C", hint: "Klik punt na punt om ze te verbinden (een ketting). Esc om een nieuwe ketting te beginnen." },
+  { id: "qr",         label: "QR-richting",toets: "Q", hint: "Klik op een lokaal, daarna op een punt in de gang: de QR-pijl wijst die kant op." },
+  { id: "verwijder",  label: "Wissen",    toets: "X", hint: "Klik op een punt of verbinding om het te verwijderen." },
+  { id: "route",      label: "Route",     toets: "R", hint: "Klik op een vertrekpunt en een bestemming om de kortste route (A*) te zien." },
+];
+
+// ---------------------------------------------------------------------------
+// Toestand
+// ---------------------------------------------------------------------------
+// Intern bewaren we knopen in pixels van hun plan (px, py). Bij export rekenen we om naar meter.
+let staat = nieuweStaat();
+let beelden = {};            // niveau → HTMLCanvasElement/HTMLImageElement (wordt niet geëxporteerd)
+let huidigNiveau = 0;
+let gereedschap = "selecteer";
+let selectie = null;         // { type: "knoop", id } of { type: "verbinding", index }
+let kalibratie = [];         // punten (plan-px) voor de schaal
+let kettingVan = null;       // id van het vorige punt bij het verbinden
+let qrBron = null;           // id van het lokaal waarvan we de QR-richting kiezen
+let routeKeuze = [];         // [startId, doelId]
+let routePad = null;         // array van ids
+let geschiedenis = [];
+let zicht = { schaal: 1, x: 0, y: 0 };  // scherm = plan * schaal + (x, y)
+let muis = { x: 0, y: 0, binnen: false };
+let sleep = null;
+
+function nieuweStaat() {
+  return {
+    gebouw: { id: "", naam: "" },
+    verdiepingen: [nieuweVerdieping(0)],
+    knopen: [],
+    verbindingen: [],
+  };
+}
+function nieuweVerdieping(niveau) {
+  return { niveau, naam: `Verdieping ${niveau}`,
+    plan: { bestand: null, breedtePx: null, hoogtePx: null, meterPerPixel: null, oorsprongPx: [0, 0] } };
+}
+
+const $ = (id) => document.getElementById(id);
+const doek = $("doek");
+const ctx = doek.getContext("2d");
+
+function verdieping(niveau = huidigNiveau) { return staat.verdiepingen.find(v => v.niveau === niveau); }
+function knoop(id) { return staat.knopen.find(k => k.id === id); }
+function knopenHier() { return staat.knopen.filter(k => k.verdieping === huidigNiveau); }
+
+// ---------------------------------------------------------------------------
+// Geschiedenis (ongedaan maken) en automatisch bewaren
+// ---------------------------------------------------------------------------
+function bewaarVoorWijziging() {
+  geschiedenis.push(JSON.stringify(staat));
+  if (geschiedenis.length > 100) geschiedenis.shift();
+}
+function ongedaan() {
+  const vorige = geschiedenis.pop();
+  if (!vorige) return;
+  staat = JSON.parse(vorige);
+  if (!verdieping()) huidigNiveau = staat.verdiepingen[0].niveau;
+  selectie = null; routePad = null;
+  alles();
+}
+function autoBewaar() {
+  try { localStorage.setItem(OPSLAG_SLEUTEL, JSON.stringify({ staat, huidigNiveau })); } catch (e) { /* geen opslag beschikbaar */ }
+  for (const [niveau, beeld] of Object.entries(beelden)) {
+    try {
+      const sleutel = `${OPSLAG_SLEUTEL}-beeld-${niveau}`;
+      if (!beeld._bewaard) { localStorage.setItem(sleutel, naarDataURL(beeld)); beeld._bewaard = true; }
+    } catch (e) { beeld._bewaard = true; /* te groot voor localStorage: niet erg */ }
+  }
+}
+function naarDataURL(beeld) {
+  if (beeld instanceof HTMLCanvasElement) return beeld.toDataURL("image/png");
+  const c = document.createElement("canvas");
+  c.width = beeld.naturalWidth; c.height = beeld.naturalHeight;
+  c.getContext("2d").drawImage(beeld, 0, 0);
+  return c.toDataURL("image/png");
+}
+async function herstel() {
+  try {
+    const ruw = localStorage.getItem(OPSLAG_SLEUTEL);
+    if (!ruw) return;
+    const data = JSON.parse(ruw);
+    staat = data.staat; huidigNiveau = data.huidigNiveau ?? 0;
+    if (!verdieping()) huidigNiveau = staat.verdiepingen[0].niveau;
+    for (const v of staat.verdiepingen) {
+      const url = localStorage.getItem(`${OPSLAG_SLEUTEL}-beeld-${v.niveau}`);
+      if (url) { const img = await laadAfbeelding(url); img._bewaard = true; beelden[v.niveau] = img; }
+    }
+  } catch (e) { console.warn("Herstellen mislukt", e); }
+}
+
+// ---------------------------------------------------------------------------
+// Omrekenen
+// ---------------------------------------------------------------------------
+function naarMeter(k) {
+  const v = verdieping(k.verdieping);
+  const m = v.plan.meterPerPixel;
+  const [ox, oy] = v.plan.oorsprongPx;
+  return { x: rond((k.px - ox) * m, 2), z: rond((k.py - oy) * m, 2) };
+}
+function rond(w, d) { const f = 10 ** d; return Math.round(w * f) / f + 0; }
+function schermNaarPlan(sx, sy) { return { x: (sx - zicht.x) / zicht.schaal, y: (sy - zicht.y) / zicht.schaal }; }
+function planNaarScherm(px, py) { return { x: px * zicht.schaal + zicht.x, y: py * zicht.schaal + zicht.y }; }
+function afstandPx(a, b) { return Math.hypot(a.px - b.px, a.py - b.py); }
+
+/** Kost van een verbinding in "meter", zelfde regel als in de app. */
+function kostVan(v) {
+  if (typeof v.kost === "number") return v.kost;
+  const a = knoop(v.van), b = knoop(v.naar);
+  if (a.verdieping !== b.verdieping) return 10 * Math.abs(a.verdieping - b.verdieping);
+  const m = verdieping(a.verdieping).plan.meterPerPixel || 0;
+  return afstandPx(a, b) * m;
+}
+
+// ---------------------------------------------------------------------------
+// Tekenen
+// ---------------------------------------------------------------------------
+function passend() {
+  const r = doek.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  doek.width = Math.round(r.width * dpr); doek.height = Math.round(r.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  teken();
+}
+function zoomPassend() {
+  const r = doek.getBoundingClientRect();
+  const beeld = beelden[huidigNiveau];
+  let b = 1000, h = 700;
+  if (beeld) { b = beeld.width || beeld.naturalWidth; h = beeld.height || beeld.naturalHeight; }
+  else if (knopenHier().length) {
+    const xs = knopenHier().map(k => k.px), ys = knopenHier().map(k => k.py);
+    const minX = Math.min(...xs) - 100, minY = Math.min(...ys) - 100;
+    b = Math.max(...xs) + 100 - minX; h = Math.max(...ys) + 100 - minY;
+    zicht.schaal = Math.min(r.width / b, r.height / h);
+    zicht.x = -minX * zicht.schaal; zicht.y = -minY * zicht.schaal;
+    return teken();
+  }
+  zicht.schaal = Math.min(r.width / b, r.height / h) * 0.95;
+  zicht.x = (r.width - b * zicht.schaal) / 2; zicht.y = (r.height - h * zicht.schaal) / 2;
+  teken();
+}
+
+function kleur(naam) { return getComputedStyle(document.documentElement).getPropertyValue(`--${naam}`).trim(); }
+
+function teken() {
+  const r = doek.getBoundingClientRect();
+  ctx.clearRect(0, 0, r.width, r.height);
+  ctx.save();
+  ctx.translate(zicht.x, zicht.y); ctx.scale(zicht.schaal, zicht.schaal);
+  const beeld = beelden[huidigNiveau];
+  if (beeld) ctx.drawImage(beeld, 0, 0);
+  ctx.restore();
+
+  const v = verdieping();
+  const s = zicht.schaal;
+
+  // Oorsprong
+  if (v.plan.meterPerPixel) {
+    const o = planNaarScherm(...v.plan.oorsprongPx);
+    ctx.strokeStyle = "#e11d48"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x + 40, o.y); ctx.moveTo(o.x, o.y); ctx.lineTo(o.x, o.y + 40); ctx.stroke();
+    ctx.fillStyle = "#e11d48"; ctx.font = "11px sans-serif";
+    ctx.fillText("x", o.x + 43, o.y + 4); ctx.fillText("z", o.x - 3, o.y + 52); ctx.fillText("(0,0)", o.x + 4, o.y - 5);
+  }
+
+  // Kalibratielijn
+  if (kalibratie.length) {
+    ctx.strokeStyle = "#e11d48"; ctx.fillStyle = "#e11d48"; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    const pts = kalibratie.map(p => planNaarScherm(p.x, p.y));
+    if (pts.length === 1 && muis.binnen) pts.push(muis);
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke();
+    ctx.setLineDash([]);
+    kalibratie.forEach(p => { const q = planNaarScherm(p.x, p.y); ctx.beginPath(); ctx.arc(q.x, q.y, 5, 0, 7); ctx.fill(); });
+  }
+
+  // Verbindingen op deze verdieping
+  const opRoute = new Set();
+  if (routePad) for (let i = 1; i < routePad.length; i++) { opRoute.add(routePad[i - 1] + "|" + routePad[i]); opRoute.add(routePad[i] + "|" + routePad[i - 1]); }
+  staat.verbindingen.forEach((vb, i) => {
+    const a = knoop(vb.van), b = knoop(vb.naar);
+    if (!a || !b) return;
+    if (a.verdieping !== huidigNiveau && b.verdieping !== huidigNiveau) return;
+    if (a.verdieping !== b.verdieping) return; // die tonen we als badge bij de trap/lift
+    const p = planNaarScherm(a.px, a.py), q = planNaarScherm(b.px, b.py);
+    const gekozen = selectie?.type === "verbinding" && selectie.index === i;
+    const route = opRoute.has(a.id + "|" + b.id);
+    ctx.strokeStyle = route ? "#16a34a" : gekozen ? "#e11d48" : "rgba(37,99,235,.75)";
+    ctx.lineWidth = route ? 6 : gekozen ? 4 : 3;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+    if (s > 0.6 && v.plan.meterPerPixel) {
+      ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.font = "10px sans-serif";
+      ctx.fillText(`${kostVan(vb).toFixed(1)} m`, (p.x + q.x) / 2 + 4, (p.y + q.y) / 2 - 4);
+    }
+  });
+
+  // Lopende ketting
+  if (gereedschap === "verbinding" && kettingVan && muis.binnen) {
+    const a = knoop(kettingVan); const p = planNaarScherm(a.px, a.py);
+    ctx.strokeStyle = "rgba(37,99,235,.5)"; ctx.setLineDash([5, 4]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(muis.x, muis.y); ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // Knopen
+  for (const k of knopenHier()) {
+    const p = planNaarScherm(k.px, k.py);
+    const gekozen = selectie?.type === "knoop" && selectie.id === k.id;
+    const straal = k.soort === "gang" ? 5 : 8;
+
+    if (k.qr) {
+      if (k.qrHoek == null) {
+        ctx.strokeStyle = "#e11d48"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, straal + 5, 0, 7); ctx.stroke();
+      } else {
+        pijl(p.x, p.y, k.qrHoek * Math.PI / 180, 34, kleur("qr"));
+      }
+    }
+    ctx.fillStyle = kleur(k.soort);
+    ctx.beginPath();
+    if (k.soort === "trap" || k.soort === "lift") ctx.rect(p.x - straal, p.y - straal, straal * 2, straal * 2);
+    else ctx.arc(p.x, p.y, straal, 0, 7);
+    ctx.fill();
+    if (gekozen || k.id === kettingVan || k.id === qrBron || routeKeuze.includes(k.id)) {
+      ctx.strokeStyle = "#e11d48"; ctx.lineWidth = 3; ctx.stroke();
+    }
+    if (k.soort !== "gang" || gekozen || s > 1.2) {
+      ctx.font = (k.soort === "lokaal" ? "bold 13px" : "11px") + " sans-serif";
+      const tekst = k.soort === "gang" ? k.id : k.naam;
+      const w = ctx.measureText(tekst).width;
+      ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillRect(p.x + 10, p.y - 20, w + 6, 16);
+      ctx.fillStyle = "#111"; ctx.fillText(tekst, p.x + 13, p.y - 8);
+    }
+    // Badge voor verbindingen naar andere verdiepingen
+    const andere = verdiepingLinks(k.id);
+    if (andere.length) {
+      const tekst = "↕ " + andere.map(l => knoop(l.ander).verdieping).join(",");
+      ctx.font = "bold 11px sans-serif";
+      ctx.fillStyle = kleur(k.soort); ctx.fillRect(p.x + 10, p.y + 2, ctx.measureText(tekst).width + 6, 15);
+      ctx.fillStyle = "#fff"; ctx.fillText(tekst, p.x + 13, p.y + 13);
+    }
+  }
+
+  // Lopende QR-richting
+  if (gereedschap === "qr" && qrBron && muis.binnen) {
+    const k = knoop(qrBron); const p = planNaarScherm(k.px, k.py);
+    pijl(p.x, p.y, Math.atan2(muis.y - p.y, muis.x - p.x), 34, "rgba(22,163,74,.5)");
+  }
+}
+
+function pijl(x, y, hoek, lengte, kleurwaarde) {
+  const ex = x + Math.cos(hoek) * lengte, ey = y + Math.sin(hoek) * lengte;
+  ctx.strokeStyle = kleurwaarde; ctx.fillStyle = kleurwaarde; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(ex + Math.cos(hoek) * 6, ey + Math.sin(hoek) * 6);
+  ctx.lineTo(ex + Math.cos(hoek + 2.5) * 10, ey + Math.sin(hoek + 2.5) * 10);
+  ctx.lineTo(ex + Math.cos(hoek - 2.5) * 10, ey + Math.sin(hoek - 2.5) * 10);
+  ctx.closePath(); ctx.fill();
+}
+
+// ---------------------------------------------------------------------------
+// Raken (hit testing)
+// ---------------------------------------------------------------------------
+function knoopOp(sx, sy) {
+  let beste = null, besteAfstand = 12;
+  for (const k of knopenHier()) {
+    const p = planNaarScherm(k.px, k.py);
+    const d = Math.hypot(p.x - sx, p.y - sy);
+    if (d < besteAfstand) { beste = k; besteAfstand = d; }
+  }
+  return beste;
+}
+function verbindingOp(sx, sy) {
+  let beste = -1, besteAfstand = 7;
+  staat.verbindingen.forEach((vb, i) => {
+    const a = knoop(vb.van), b = knoop(vb.naar);
+    if (!a || !b || a.verdieping !== huidigNiveau || b.verdieping !== huidigNiveau) return;
+    const p = planNaarScherm(a.px, a.py), q = planNaarScherm(b.px, b.py);
+    const d = afstandTotLijn(sx, sy, p, q);
+    if (d < besteAfstand) { beste = i; besteAfstand = d; }
+  });
+  return beste;
+}
+function afstandTotLijn(x, y, p, q) {
+  const dx = q.x - p.x, dy = q.y - p.y, l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((x - p.x) * dx + (y - p.y) * dy) / l2)) : 0;
+  return Math.hypot(x - (p.x + t * dx), y - (p.y + t * dy));
+}
+
+// ---------------------------------------------------------------------------
+// Bewerkingen
+// ---------------------------------------------------------------------------
+function vrijID(soort) {
+  const prefix = ID_PREFIX[soort];
+  let n = 1;
+  while (knoop(prefix + n)) n++;
+  return prefix + n;
+}
+function voegKnoopToe(soort, px, py) {
+  bewaarVoorWijziging();
+  const id = vrijID(soort);
+  const namen = { lokaal: id, gang: "Gang", trap: "Trap", lift: "Lift" };
+  const k = { id, naam: namen[soort], soort, verdieping: huidigNiveau, px: rond(px, 1), py: rond(py, 1),
+              qr: soort === "lokaal", qrHoek: null };
+  staat.knopen.push(k);
+  selectie = { type: "knoop", id };
+  alles();
+  if (soort === "lokaal") { $("knoopID").focus(); $("knoopID").select(); }
+  return k;
+}
+function verbind(a, b, kost) {
+  if (a === b) return false;
+  const bestaat = staat.verbindingen.some(v => (v.van === a && v.naar === b) || (v.van === b && v.naar === a));
+  if (bestaat) return false;
+  bewaarVoorWijziging();
+  const v = { van: a, naar: b };
+  if (typeof kost === "number" && !isNaN(kost)) v.kost = kost;
+  staat.verbindingen.push(v);
+  // Een lokaal dat voor het eerst met de gang verbonden wordt, krijgt automatisch
+  // een QR-richting naar dat punt (van de deur de gang in).
+  for (const [x, y] of [[a, b], [b, a]]) {
+    const kx = knoop(x), ky = knoop(y);
+    if (kx.soort === "lokaal" && kx.qr && kx.qrHoek == null && kx.verdieping === ky.verdieping) {
+      kx.qrHoek = rondHoek(Math.atan2(ky.py - kx.py, ky.px - kx.px) * 180 / Math.PI);
+    }
+  }
+  return true;
+}
+function rondHoek(graden) {
+  let g = ((graden % 360) + 360) % 360;
+  // Bijna recht? Dan recht maken (plannen zijn meestal haaks).
+  for (const r of [0, 90, 180, 270, 360]) if (Math.abs(g - r) < 4) g = r % 360;
+  return rond(g, 1);
+}
+function verwijderKnoop(id) {
+  bewaarVoorWijziging();
+  staat.knopen = staat.knopen.filter(k => k.id !== id);
+  staat.verbindingen = staat.verbindingen.filter(v => v.van !== id && v.naar !== id);
+  if (selectie?.id === id) selectie = null;
+  if (kettingVan === id) kettingVan = null;
+  routePad = null; routeKeuze = [];
+  alles();
+}
+function verwijderVerbinding(index) {
+  bewaarVoorWijziging();
+  staat.verbindingen.splice(index, 1);
+  selectie = null; routePad = null;
+  alles();
+}
+function hernoemID(oud, nieuw) {
+  nieuw = nieuw.trim();
+  if (!nieuw || nieuw === oud) return true;
+  if (!/^[A-Za-z0-9._-]+$/.test(nieuw)) { alert("Een id mag enkel letters, cijfers, punt, - en _ bevatten (het komt in de QR-code)."); return false; }
+  if (knoop(nieuw)) { alert(`Id „${nieuw}” bestaat al.`); return false; }
+  bewaarVoorWijziging();
+  const k = knoop(oud);
+  if (k.naam === oud) k.naam = nieuw;   // naam volgde het id: blijft volgen
+  k.id = nieuw;
+  for (const v of staat.verbindingen) { if (v.van === oud) v.van = nieuw; if (v.naar === oud) v.naar = nieuw; }
+  selectie = { type: "knoop", id: nieuw };
+  return true;
+}
+function verdiepingLinks(id) {
+  const k = knoop(id);
+  return staat.verbindingen
+    .map((v, index) => ({ v, index, ander: v.van === id ? v.naar : v.naar === id ? v.van : null }))
+    .filter(l => l.ander && knoop(l.ander) && knoop(l.ander).verdieping !== k.verdieping);
+}
+
+// ---------------------------------------------------------------------------
+// A* (zelfde logica als Graaf.kortsteRoute in de app)
+// ---------------------------------------------------------------------------
+function meterPositie(k) {
+  const v = verdieping(k.verdieping);
+  if (!v.plan.meterPerPixel) return { x: k.px, z: k.py };
+  return naarMeter(k);
+}
+function kortsteRoute(startID, doelID) {
+  const buren = {};
+  for (const v of staat.verbindingen) {
+    const kost = kostVan(v);
+    (buren[v.van] ??= []).push({ id: v.naar, kost });
+    (buren[v.naar] ??= []).push({ id: v.van, kost });
+  }
+  const doel = knoop(doelID), dm = meterPositie(doel);
+  const h = (id) => {
+    const k = knoop(id);
+    if (k.verdieping !== doel.verdieping) return 0; // plannen kunnen verschoven zijn: niet overschatten
+    const m = meterPositie(k);
+    return Math.hypot(m.x - dm.x, m.z - dm.z);
+  };
+  const open = new Set([startID]);
+  const g = { [startID]: 0 }, f = { [startID]: h(startID) }, van = {};
+  while (open.size) {
+    let huidig = null;
+    for (const id of open) if (huidig === null || (f[id] ?? Infinity) < (f[huidig] ?? Infinity)) huidig = id;
+    if (huidig === doelID) {
+      const pad = [huidig];
+      while (van[pad[0]]) pad.unshift(van[pad[0]]);
+      return { pad, lengte: g[doelID] };
+    }
+    open.delete(huidig);
+    for (const b of buren[huidig] ?? []) {
+      const ng = g[huidig] + b.kost;
+      if (ng < (g[b.id] ?? Infinity)) { van[b.id] = huidig; g[b.id] = ng; f[b.id] = ng + h(b.id); open.add(b.id); }
+    }
+  }
+  return null;
+}
+
+/** Wandelafstand en looptijd, zelfde regels als RouteOverzicht in de app (zie FORMAAT.md). */
+function routeTekst(pad) {
+  let meter = 0, wissels = 0;
+  for (let i = 1; i < pad.length; i++) {
+    const a = knoop(pad[i - 1]), b = knoop(pad[i]);
+    if (a.verdieping === b.verdieping) { const p = meterPositie(a), q = meterPositie(b); meter += Math.hypot(p.x - q.x, p.z - q.z); }
+    else wissels += Math.abs(a.verdieping - b.verdieping);
+  }
+  const sec = Math.round(meter / 1.3 + wissels * 30);
+  const tijd = sec < 60 ? "< 1 min" : `± ${Math.ceil(sec / 60)} min`;
+  return `${Math.round(meter)} m · ${tijd}` + (wissels ? ` · ${wissels} verdieping${wissels > 1 ? "en" : ""}` : "");
+}
+
+// ---------------------------------------------------------------------------
+// Muis en toetsenbord
+// ---------------------------------------------------------------------------
+function schermPunt(e) { const r = doek.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+
+doek.addEventListener("pointerdown", (e) => {
+  const s = schermPunt(e);
+  const p = schermNaarPlan(s.x, s.y);
+  doek.setPointerCapture(e.pointerId);
+  if (e.button === 1 || e.button === 2) { sleep = { soort: "pan", sx: s.x, sy: s.y, zx: zicht.x, zy: zicht.y }; return; }
+  const k = knoopOp(s.x, s.y);
+
+  switch (gereedschap) {
+    case "selecteer": {
+      if (k) {
+        selectie = { type: "knoop", id: k.id };
+        bewaarVoorWijziging();
+        sleep = { soort: "knoop", id: k.id, dx: k.px - p.x, dy: k.py - p.y, bewogen: false };
+      } else {
+        const i = verbindingOp(s.x, s.y);
+        if (i >= 0) selectie = { type: "verbinding", index: i };
+        else { selectie = null; sleep = { soort: "pan", sx: s.x, sy: s.y, zx: zicht.x, zy: zicht.y }; }
+      }
+      break;
+    }
+    case "schaal": {
+      if (kalibratie.length >= 2) kalibratie = [];
+      kalibratie.push(p);
+      if (kalibratie.length === 2) { $("schaalInvoer").classList.remove("verborgen"); $("schaalMeter").focus(); }
+      break;
+    }
+    case "oorsprong": {
+      bewaarVoorWijziging();
+      verdieping().plan.oorsprongPx = [rond(p.x, 1), rond(p.y, 1)];
+      break;
+    }
+    case "lokaal": case "gang": case "trap": case "lift": {
+      if (k) { selectie = { type: "knoop", id: k.id }; break; }
+      let q = { ...p };
+      const vorige = selectie?.type === "knoop" ? knoop(selectie.id) : null;
+      if (e.shiftKey && vorige && vorige.verdieping === huidigNiveau) {
+        if (Math.abs(q.x - vorige.px) < Math.abs(q.y - vorige.py)) q.x = vorige.px; else q.y = vorige.py;
+      }
+      voegKnoopToe(gereedschap, q.x, q.y);
+      break;
+    }
+    case "verbinding": {
+      if (!k) { kettingVan = null; break; }
+      if (kettingVan && kettingVan !== k.id) verbind(kettingVan, k.id);
+      kettingVan = k.id;
+      selectie = { type: "knoop", id: k.id };
+      break;
+    }
+    case "qr": {
+      if (!qrBron) {
+        if (k && k.soort === "lokaal") qrBron = k.id;
+        else if (k) toonHint("Enkel een lokaal (deur) heeft een QR-code.");
+      } else {
+        const b = knoop(qrBron);
+        bewaarVoorWijziging();
+        b.qr = true;
+        b.qrHoek = rondHoek(Math.atan2(p.y - b.py, p.x - b.px) * 180 / Math.PI);
+        selectie = { type: "knoop", id: b.id };
+        qrBron = null;
+      }
+      break;
+    }
+    case "verwijder": {
+      if (k) verwijderKnoop(k.id);
+      else { const i = verbindingOp(s.x, s.y); if (i >= 0) verwijderVerbinding(i); }
+      break;
+    }
+    case "route": {
+      if (!k) break;
+      if (routeKeuze.length >= 2) { routeKeuze = []; routePad = null; }
+      routeKeuze.push(k.id);
+      if (routeKeuze.length === 2) {
+        const r = kortsteRoute(routeKeuze[0], routeKeuze[1]);
+        routePad = r?.pad ?? null;
+        $("routeInfo").innerHTML = r
+          ? `<span class="ok">Route ${routeKeuze[0]} → ${routeKeuze[1]}: ${routeTekst(r.pad)}</span><br><span class="klein">kost A*: ${r.lengte.toFixed(1)} · ${r.pad.join(" → ")}</span>`
+          : `<span class="fout">Geen route tussen ${routeKeuze[0]} en ${routeKeuze[1]}.</span>`;
+      } else {
+        $("routeInfo").textContent = `Vertrek: ${k.naam}. Klik nu op de bestemming (mag op een andere verdieping).`;
+      }
+      break;
+    }
+  }
+  alles();
+});
+
+doek.addEventListener("pointermove", (e) => {
+  const s = schermPunt(e);
+  muis = { ...s, binnen: true };
+  const p = schermNaarPlan(s.x, s.y);
+  const v = verdieping();
+  if (v.plan.meterPerPixel) {
+    const m = v.plan.meterPerPixel, [ox, oy] = v.plan.oorsprongPx;
+    $("coord").textContent = `x ${((p.x - ox) * m).toFixed(2)} m · z ${((p.y - oy) * m).toFixed(2)} m`;
+  } else {
+    $("coord").textContent = `${p.x.toFixed(0)}, ${p.y.toFixed(0)} px (nog geen schaal)`;
+  }
+  if (sleep?.soort === "pan") { zicht.x = sleep.zx + s.x - sleep.sx; zicht.y = sleep.zy + s.y - sleep.sy; }
+  if (sleep?.soort === "knoop") {
+    const k = knoop(sleep.id); k.px = rond(p.x + sleep.dx, 1); k.py = rond(p.y + sleep.dy, 1); sleep.bewogen = true;
+    toonSelectie();
+  }
+  teken();
+});
+doek.addEventListener("pointerup", () => {
+  if (sleep?.soort === "knoop" && !sleep.bewogen) geschiedenis.pop(); // niets veranderd
+  if (sleep?.soort === "knoop") alles();
+  sleep = null;
+});
+doek.addEventListener("pointerleave", () => { muis.binnen = false; teken(); });
+doek.addEventListener("contextmenu", (e) => e.preventDefault());
+doek.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const s = schermPunt(e);
+  const factor = Math.exp(-e.deltaY * 0.0015);
+  const nieuw = Math.max(0.05, Math.min(20, zicht.schaal * factor));
+  zicht.x = s.x - (s.x - zicht.x) * (nieuw / zicht.schaal);
+  zicht.y = s.y - (s.y - zicht.y) * (nieuw / zicht.schaal);
+  zicht.schaal = nieuw;
+  teken();
+}, { passive: false });
+
+document.addEventListener("keydown", (e) => {
+  const inVeld = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !inVeld) { e.preventDefault(); ongedaan(); return; }
+  if (inVeld) {
+    // Enter of Esc in een tekstveld: klaar met typen, sneltoetsen werken weer.
+    if (e.key === "Escape" || (e.key === "Enter" && document.activeElement.type !== "number")) document.activeElement.blur();
+    return;
+  }
+  if (e.key === "Escape") { kettingVan = null; qrBron = null; kalibratie = []; routeKeuze = []; $("schaalInvoer").classList.add("verborgen"); alles(); return; }
+  if (e.key === "Delete" || e.key === "Backspace") {
+    if (selectie?.type === "knoop") verwijderKnoop(selectie.id);
+    else if (selectie?.type === "verbinding") verwijderVerbinding(selectie.index);
+    return;
+  }
+  const g = GEREEDSCHAP.find(g => g.toets.toLowerCase() === e.key.toLowerCase());
+  if (g && !e.ctrlKey && !e.metaKey) kiesGereedschap(g.id);
+});
+
+function kiesGereedschap(id) {
+  gereedschap = id;
+  kettingVan = null; qrBron = null;
+  if (id !== "schaal") { kalibratie = []; $("schaalInvoer").classList.add("verborgen"); }
+  if (id !== "route") { routeKeuze = []; }
+  alles();
+}
+let hintTimer = null;
+function toonHint(tekst) {
+  $("hint").textContent = tekst;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => werkHintBij(), 3500);
+}
+function werkHintBij() { $("hint").textContent = GEREEDSCHAP.find(g => g.id === gereedschap).hint; }
+
+// ---------------------------------------------------------------------------
+// Zijpaneel
+// ---------------------------------------------------------------------------
+function bouwGereedschap() {
+  const vak = $("gereedschap"); vak.innerHTML = "";
+  for (const g of GEREEDSCHAP) {
+    const b = document.createElement("button");
+    b.innerHTML = `${g.label}<kbd>${g.toets}</kbd>`;
+    b.dataset.id = g.id;
+    b.onclick = () => kiesGereedschap(g.id);
+    vak.appendChild(b);
+  }
+}
+
+function alles() {
+  for (const b of $("gereedschap").children) b.classList.toggle("actief", b.dataset.id === gereedschap);
+  werkHintBij();
+  toonGebouw(); toonVerdieping(); toonSelectie(); toonControle();
+  teken();
+  autoBewaar();
+}
+
+function toonGebouw() {
+  if (document.activeElement !== $("gebouwNaam")) $("gebouwNaam").value = staat.gebouw.naam;
+  if (document.activeElement !== $("gebouwID")) $("gebouwID").value = staat.gebouw.id;
+}
+
+function toonVerdieping() {
+  const keuze = $("verdiepingKeuze");
+  keuze.innerHTML = "";
+  for (const v of [...staat.verdiepingen].sort((a, b) => a.niveau - b.niveau)) {
+    const o = document.createElement("option");
+    o.value = v.niveau; o.textContent = `${v.niveau}: ${v.naam}`;
+    keuze.appendChild(o);
+  }
+  keuze.value = huidigNiveau;
+  const v = verdieping();
+  if (document.activeElement !== $("verdiepingNaam")) $("verdiepingNaam").value = v.naam;
+  if (document.activeElement !== $("verdiepingNiveau")) $("verdiepingNiveau").value = v.niveau;
+  $("planInfo").textContent = v.plan.bestand
+    ? `Plan: ${v.plan.bestand} (${v.plan.breedtePx}×${v.plan.hoogtePx} px)${beelden[huidigNiveau] ? "" : " — afbeelding niet geladen, laad ze opnieuw"}`
+    : "Nog geen plan geladen.";
+  const m = v.plan.meterPerPixel;
+  $("schaalInfo").innerHTML = m
+    ? `<span class="ok">Schaal: 1 m = ${(1 / m).toFixed(1)} px</span>`
+    : `<span class="fout">Nog geen schaal: gebruik het gereedschap „Schaal”.</span>`;
+}
+
+function toonSelectie() {
+  const k = selectie?.type === "knoop" ? knoop(selectie.id) : null;
+  const vb = selectie?.type === "verbinding" ? staat.verbindingen[selectie.index] : null;
+  $("geenSelectie").classList.toggle("verborgen", !!(k || vb));
+  $("knoopEditor").classList.toggle("verborgen", !k);
+  $("verbindingEditor").classList.toggle("verborgen", !vb);
+  if (k) {
+    const actief = document.activeElement;
+    if (actief !== $("knoopID")) $("knoopID").value = k.id;
+    if (actief !== $("knoopNaam")) $("knoopNaam").value = k.naam;
+    $("knoopSoort").value = k.soort;
+    $("qrVak").classList.toggle("verborgen", k.soort !== "lokaal");
+    $("knoopHeeftQR").checked = !!k.qr;
+    $("qrHoekRij").classList.toggle("verborgen", !k.qr);
+    $("qrKnoppen").classList.toggle("verborgen", !k.qr);
+    if (actief !== $("knoopQRHoek")) $("knoopQRHoek").value = k.qrHoek ?? "";
+    const m = verdieping(k.verdieping).plan.meterPerPixel ? naarMeter(k) : null;
+    $("knoopPositie").textContent = m ? `Positie: x = ${m.x} m, z = ${m.z} m (verdieping ${k.verdieping})` : `Positie: ${k.px}, ${k.py} px`;
+    const isVerticaal = k.soort === "trap" || k.soort === "lift";
+    $("verdiepingLinkVak").classList.toggle("verborgen", !isVerticaal);
+    if (isVerticaal) {
+      const lijst = $("verdiepingLinks"); lijst.innerHTML = "";
+      for (const l of verdiepingLinks(k.id)) {
+        const a = knoop(l.ander);
+        const li = document.createElement("li");
+        li.innerHTML = `<span>${a.naam} (${a.id}, verdieping ${a.verdieping}) · kost ${kostVan(l.v).toFixed(0)}</span>`;
+        const b = document.createElement("button"); b.textContent = "×"; b.title = "Verbinding verwijderen";
+        b.onclick = () => verwijderVerbinding(l.index);
+        li.appendChild(b); lijst.appendChild(li);
+      }
+      if (!lijst.children.length) lijst.innerHTML = `<li class="klein">Nog geen.</li>`;
+      const doel = $("linkDoel"); doel.innerHTML = "";
+      const kandidaten = staat.knopen.filter(a => a.verdieping !== k.verdieping && (a.soort === "trap" || a.soort === "lift"));
+      for (const a of kandidaten) {
+        const o = document.createElement("option"); o.value = a.id;
+        o.textContent = `${a.naam} (${a.id}) · verdieping ${a.verdieping}`;
+        doel.appendChild(o);
+      }
+      if (!kandidaten.length) doel.innerHTML = `<option value="">Maak eerst een trap/lift op een andere verdieping</option>`;
+    }
+  }
+  if (vb) {
+    const a = knoop(vb.van), b = knoop(vb.naar);
+    $("verbindingInfo").textContent = `${a.naam} (${a.id}) ↔ ${b.naam} (${b.id})`;
+    if (document.activeElement !== $("verbindingKost")) $("verbindingKost").value = vb.kost ?? "";
+  }
+}
+
+/** Controleert de graaf. Geeft { fouten, waarschuwingen } terug. */
+function controleer() {
+  const fouten = [], waarsch = [];
+  for (const v of staat.verdiepingen) {
+    const aantal = staat.knopen.filter(k => k.verdieping === v.niveau).length;
+    if (aantal && !v.plan.meterPerPixel) fouten.push(`Verdieping ${v.niveau} heeft nog geen schaal.`);
+  }
+  if (!staat.gebouw.id) waarsch.push("Het gebouw heeft nog geen id.");
+  const ids = new Set();
+  for (const k of staat.knopen) {
+    if (ids.has(k.id)) fouten.push(`Id „${k.id}” komt twee keer voor.`);
+    ids.add(k.id);
+    if (!/^[A-Za-z0-9._-]+$/.test(k.id)) fouten.push(`Id „${k.id}” bevat ongeldige tekens.`);
+    if (k.soort === "lokaal" && k.qr && k.qrHoek == null) fouten.push(`${k.naam}: QR-richting ontbreekt.`);
+    const graad = staat.verbindingen.filter(v => v.van === k.id || v.naar === k.id).length;
+    if (!graad) waarsch.push(`${k.naam} (${k.id}) is met niets verbonden.`);
+  }
+  for (const v of staat.verbindingen) {
+    const a = knoop(v.van), b = knoop(v.naar);
+    if (!a || !b) { fouten.push(`Verbinding ${v.van}–${v.naar} verwijst naar een onbekend punt.`); continue; }
+    if (a.verdieping !== b.verdieping && !(["trap", "lift"].includes(a.soort) && ["trap", "lift"].includes(b.soort)))
+      waarsch.push(`${a.id}–${b.id} wisselt van verdieping maar is geen trap/lift.`);
+  }
+  // Samenhang: kan je overal geraken?
+  if (staat.knopen.length) {
+    const buren = {};
+    for (const v of staat.verbindingen) { (buren[v.van] ??= []).push(v.naar); (buren[v.naar] ??= []).push(v.van); }
+    const gezien = new Set(); let delen = 0;
+    for (const k of staat.knopen) {
+      if (gezien.has(k.id)) continue;
+      delen++;
+      const stapel = [k.id];
+      while (stapel.length) { const id = stapel.pop(); if (gezien.has(id)) continue; gezien.add(id); stapel.push(...(buren[id] ?? [])); }
+    }
+    if (delen > 1) waarsch.push(`De graaf bestaat uit ${delen} losse delen: niet elke bestemming is bereikbaar.`);
+  }
+  return { fouten, waarsch };
+}
+function toonControle() {
+  const { fouten, waarsch } = controleer();
+  const lokalen = staat.knopen.filter(k => k.soort === "lokaal").length;
+  const qrs = staat.knopen.filter(k => k.soort === "lokaal" && k.qr).length;
+  let html = `<div class="klein">${staat.knopen.length} punten · ${staat.verbindingen.length} verbindingen · ${lokalen} lokalen · ${qrs} QR-codes</div>`;
+  if (!fouten.length && !waarsch.length && staat.knopen.length) html += `<div class="melding ok">✓ Alles in orde.</div>`;
+  html += fouten.slice(0, 12).map(f => `<div class="melding fout">✗ ${esc(f)}</div>`).join("");
+  html += waarsch.slice(0, 12).map(f => `<div class="melding waarsch">⚠ ${esc(f)}</div>`).join("");
+  if (fouten.length + waarsch.length > 24) html += `<div class="klein">… en meer</div>`;
+  $("controle").innerHTML = html;
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+// Velden → staat
+$("gebouwNaam").addEventListener("input", (e) => { staat.gebouw.naam = e.target.value; autoBewaar(); });
+$("gebouwID").addEventListener("input", (e) => { staat.gebouw.id = e.target.value.trim(); autoBewaar(); toonControle(); });
+$("verdiepingKeuze").addEventListener("change", (e) => {
+  huidigNiveau = Number(e.target.value); selectie = null; kettingVan = null; kalibratie = [];
+  alles(); zoomPassend();
+});
+$("verdiepingNaam").addEventListener("input", (e) => { verdieping().naam = e.target.value; autoBewaar(); });
+$("verdiepingNaam").addEventListener("change", () => alles());
+$("verdiepingNiveau").addEventListener("change", (e) => {
+  const nieuw = Number(e.target.value);
+  if (!Number.isInteger(nieuw)) return alles();
+  if (verdieping(nieuw)) { alert(`Niveau ${nieuw} bestaat al.`); return alles(); }
+  bewaarVoorWijziging();
+  const oud = huidigNiveau;
+  verdieping().niveau = nieuw;
+  for (const k of staat.knopen) if (k.verdieping === oud) k.verdieping = nieuw;
+  if (beelden[oud]) { beelden[nieuw] = beelden[oud]; delete beelden[oud]; beelden[nieuw]._bewaard = false; }
+  huidigNiveau = nieuw; alles();
+});
+$("knopVerdiepingPlus").onclick = () => {
+  bewaarVoorWijziging();
+  const niveau = Math.max(...staat.verdiepingen.map(v => v.niveau)) + 1;
+  const nieuw = nieuweVerdieping(niveau);
+  // Zelfde schaal/oorsprong als de huidige verdieping als startpunt (vaak zelfde soort plan).
+  staat.verdiepingen.push(nieuw);
+  huidigNiveau = niveau; selectie = null; alles(); zoomPassend();
+};
+$("knopVerdiepingMin").onclick = () => {
+  if (staat.verdiepingen.length === 1) return alert("Er moet minstens één verdieping zijn.");
+  const aantal = knopenHier().length;
+  if (!confirm(`Verdieping ${huidigNiveau} verwijderen${aantal ? ` met ${aantal} punten` : ""}?`)) return;
+  bewaarVoorWijziging();
+  const weg = new Set(knopenHier().map(k => k.id));
+  staat.knopen = staat.knopen.filter(k => !weg.has(k.id));
+  staat.verbindingen = staat.verbindingen.filter(v => !weg.has(v.van) && !weg.has(v.naar));
+  staat.verdiepingen = staat.verdiepingen.filter(v => v.niveau !== huidigNiveau);
+  delete beelden[huidigNiveau];
+  try { localStorage.removeItem(`${OPSLAG_SLEUTEL}-beeld-${huidigNiveau}`); } catch (e) {}
+  huidigNiveau = staat.verdiepingen[0].niveau; selectie = null; alles(); zoomPassend();
+};
+$("knopSchaalOK").onclick = pasSchaalToe;
+$("schaalMeter").addEventListener("keydown", (e) => { if (e.key === "Enter") pasSchaalToe(); });
+function pasSchaalToe() {
+  const meter = Number($("schaalMeter").value);
+  if (kalibratie.length !== 2 || !(meter > 0)) return alert("Klik eerst 2 punten en vul een afstand in meter in.");
+  const [a, b] = kalibratie;
+  const px = Math.hypot(a.x - b.x, a.y - b.y);
+  if (px < 5) return alert("De 2 punten liggen te dicht bij elkaar.");
+  bewaarVoorWijziging();
+  verdieping().plan.meterPerPixel = meter / px;
+  kalibratie = []; $("schaalInvoer").classList.add("verborgen"); $("schaalMeter").value = "";
+  toonHint(`Schaal ingesteld: 1 m = ${(px / meter).toFixed(1)} px. Zet nu de oorsprong (O) of begin met punten.`);
+  alles();
+}
+
+$("knoopID").addEventListener("change", (e) => {
+  if (!hernoemID(selectie.id, e.target.value)) e.target.value = selectie.id;
+  alles();
+});
+$("knoopNaam").addEventListener("input", (e) => { knoop(selectie.id).naam = e.target.value; teken(); autoBewaar(); });
+$("knoopNaam").addEventListener("focus", () => bewaarVoorWijziging());
+$("knoopSoort").addEventListener("change", (e) => {
+  bewaarVoorWijziging();
+  const k = knoop(selectie.id); k.soort = e.target.value;
+  if (k.soort !== "lokaal") { k.qr = false; k.qrHoek = null; } else { k.qr = true; }
+  alles();
+});
+$("knoopHeeftQR").addEventListener("change", (e) => { bewaarVoorWijziging(); knoop(selectie.id).qr = e.target.checked; alles(); });
+$("knoopQRHoek").addEventListener("change", (e) => {
+  bewaarVoorWijziging();
+  const w = e.target.value === "" ? null : rondHoek(Number(e.target.value));
+  knoop(selectie.id).qrHoek = w; alles();
+});
+for (const b of $("qrKnoppen").querySelectorAll("button")) {
+  b.onclick = () => { bewaarVoorWijziging(); knoop(selectie.id).qrHoek = Number(b.dataset.hoek); alles(); };
+}
+$("knopLink").onclick = () => {
+  const doel = $("linkDoel").value;
+  if (!doel) return;
+  const kost = $("linkKost").value === "" ? undefined : Number($("linkKost").value);
+  verbind(selectie.id, doel, kost);
+  $("linkKost").value = "";
+  alles();
+};
+$("knopKnoopWeg").onclick = () => verwijderKnoop(selectie.id);
+$("verbindingKost").addEventListener("change", (e) => {
+  bewaarVoorWijziging();
+  const vb = staat.verbindingen[selectie.index];
+  if (e.target.value === "") delete vb.kost; else vb.kost = Number(e.target.value);
+  alles();
+});
+$("knopVerbindingWeg").onclick = () => verwijderVerbinding(selectie.index);
+$("knopOngedaan").onclick = ongedaan;
+
+// ---------------------------------------------------------------------------
+// Plan laden (afbeelding of PDF)
+// ---------------------------------------------------------------------------
+$("knopPlanLaden").onclick = () => $("bestandPlan").click();
+$("bestandPlan").addEventListener("change", async (e) => {
+  const bestand = e.target.files[0];
+  e.target.value = "";
+  if (bestand) await laadPlanBestand(bestand);
+});
+async function laadPlanBestand(bestand) {
+  let beeld, naam = bestand.name;
+  try {
+    if (bestand.type === "application/pdf" || /\.pdf$/i.test(bestand.name)) {
+      const resultaat = await renderPDF(bestand);
+      if (!resultaat) return;
+      beeld = resultaat.canvas;
+      if (resultaat.pagina > 1) naam += `#p${resultaat.pagina}`;
+    } else {
+      beeld = await laadAfbeelding(URL.createObjectURL(bestand));
+    }
+  } catch (err) {
+    console.error(err);
+    return alert("Dit bestand kon niet gelezen worden: " + err.message);
+  }
+  zetPlanBeeld(beeld, naam);
+}
+function zetPlanBeeld(beeld, naam) {
+  const v = verdieping();
+  const b = beeld.width || beeld.naturalWidth, h = beeld.height || beeld.naturalHeight;
+  bewaarVoorWijziging();
+  // Zelfde plan opnieuw geladen met een andere resolutie? Dan schalen we alles mee.
+  if (v.plan.breedtePx && v.plan.breedtePx !== b) {
+    const f = b / v.plan.breedtePx;
+    if (Math.abs(h / v.plan.hoogtePx - f) > 0.02) alert("Let op: dit plan heeft een andere breedte/hoogte-verhouding dan het vorige. Controleer de punten.");
+    if (v.plan.meterPerPixel) v.plan.meterPerPixel /= f;
+    v.plan.oorsprongPx = v.plan.oorsprongPx.map(c => rond(c * f, 1));
+    for (const k of knopenHier()) { k.px = rond(k.px * f, 1); k.py = rond(k.py * f, 1); }
+  }
+  v.plan.bestand = naam; v.plan.breedtePx = b; v.plan.hoogtePx = h;
+  beeld._bewaard = false;
+  beelden[huidigNiveau] = beeld;
+  alles(); zoomPassend();
+  if (!v.plan.meterPerPixel) { kiesGereedschap("schaal"); toonHint("Plan geladen. Stel nu de schaal in: klik 2 punten met een gekende afstand."); }
+}
+function laadAfbeelding(url) {
+  return new Promise((ok, nok) => { const img = new Image(); img.onload = () => ok(img); img.onerror = () => nok(new Error("geen geldige afbeelding")); img.src = url; });
+}
+async function renderPDF(bestand) {
+  const pdfjs = window.pdfjsLib;
+  pdfjs.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(await bestand.arrayBuffer()) }).promise;
+  let pagina = 1;
+  if (pdf.numPages > 1) {
+    const antwoord = prompt(`Deze PDF heeft ${pdf.numPages} pagina's. Welke pagina is dit plan?`, "1");
+    if (antwoord === null) return null;
+    pagina = Math.min(pdf.numPages, Math.max(1, parseInt(antwoord, 10) || 1));
+  }
+  const p = await pdf.getPage(pagina);
+  const basis = p.getViewport({ scale: 1 });
+  // Groot genoeg om deuren te zien, klein genoeg voor de browser (max. ±4000 px).
+  const schaal = Math.min(4000 / Math.max(basis.width, basis.height), 4);
+  const vp = p.getViewport({ scale: schaal });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  const c = canvas.getContext("2d");
+  c.fillStyle = "#fff"; c.fillRect(0, 0, canvas.width, canvas.height);
+  await p.render({ canvasContext: c, viewport: vp }).promise;
+  return { canvas, pagina };
+}
+
+// Slepen en neerzetten van een plan of JSON op de editor
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  const bestand = e.dataTransfer.files[0];
+  if (!bestand) return;
+  if (/\.json$/i.test(bestand.name)) importeer(await bestand.text());
+  else await laadPlanBestand(bestand);
+});
+
+// ---------------------------------------------------------------------------
+// Exporteren en importeren
+// ---------------------------------------------------------------------------
+function naarJSON() {
+  const verdiepingen = [...staat.verdiepingen].sort((a, b) => a.niveau - b.niveau).map(v => ({
+    niveau: v.niveau, naam: v.naam,
+    plan: { bestand: v.plan.bestand, breedtePx: v.plan.breedtePx, hoogtePx: v.plan.hoogtePx,
+            meterPerPixel: v.plan.meterPerPixel ? rond(v.plan.meterPerPixel, 8) : null, oorsprongPx: v.plan.oorsprongPx },
+  }));
+  const knopen = staat.knopen.map(k => {
+    const m = naarMeter(k);
+    const uit = { id: k.id, naam: k.naam, soort: k.soort, verdieping: k.verdieping, x: m.x, z: m.z };
+    if (k.soort === "lokaal" && k.qr && k.qrHoek != null) {
+      const r = k.qrHoek * Math.PI / 180;
+      uit.qr = { code: QR_PREFIX + k.id, normaal: [rond(Math.cos(r), 4), rond(Math.sin(r), 4)] };
+    }
+    return uit;
+  });
+  const verbindingen = staat.verbindingen.map(v => (typeof v.kost === "number" ? { van: v.van, naar: v.naar, kost: v.kost } : { van: v.van, naar: v.naar }));
+  return { formaat: FORMAAT, versie: VERSIE, gebouw: { id: staat.gebouw.id, naam: staat.gebouw.naam }, verdiepingen, knopen, verbindingen };
+}
+$("knopExport").onclick = () => {
+  const { fouten } = controleer();
+  if (fouten.length && !confirm(`Er zijn ${fouten.length} fout(en):\n\n• ${fouten.slice(0, 8).join("\n• ")}\n\nToch exporteren?`)) return;
+  const tekst = JSON.stringify(naarJSON(), null, 2);
+  download(new Blob([tekst], { type: "application/json" }), `${staat.gebouw.id || "gebouw"}.json`);
+};
+function download(blob, naam) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = naam;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+$("knopImport").onclick = () => $("bestandJSON").click();
+$("bestandJSON").addEventListener("change", async (e) => {
+  const b = e.target.files[0]; e.target.value = "";
+  if (b) importeer(await b.text());
+});
+function importeer(tekst) {
+  let d;
+  try { d = JSON.parse(tekst); } catch (e) { return alert("Geen geldig JSON-bestand."); }
+  if (d.formaat !== FORMAAT) return alert(`Dit is geen ${FORMAAT}-bestand.`);
+  if (d.versie > VERSIE) return alert(`Versie ${d.versie} is nieuwer dan deze editor (versie ${VERSIE}).`);
+  bewaarVoorWijziging();
+  const nieuw = {
+    gebouw: { id: d.gebouw?.id ?? "", naam: d.gebouw?.naam ?? "" },
+    verdiepingen: d.verdiepingen.map(v => ({ niveau: v.niveau, naam: v.naam,
+      plan: { bestand: v.plan?.bestand ?? null, breedtePx: v.plan?.breedtePx ?? null, hoogtePx: v.plan?.hoogtePx ?? null,
+              meterPerPixel: v.plan?.meterPerPixel ?? null, oorsprongPx: v.plan?.oorsprongPx ?? [0, 0] } })),
+    knopen: [], verbindingen: (d.verbindingen ?? []).map(v => ({ ...v })),
+  };
+  for (const k of d.knopen) {
+    const v = nieuw.verdiepingen.find(v => v.niveau === k.verdieping);
+    const m = v?.plan.meterPerPixel || 0.02;  // zonder schaal: 50 px per meter
+    const [ox, oy] = v?.plan.oorsprongPx ?? [0, 0];
+    let qrHoek = null;
+    if (k.qr?.normaal) qrHoek = rondHoek(Math.atan2(k.qr.normaal[1], k.qr.normaal[0]) * 180 / Math.PI);
+    nieuw.knopen.push({ id: k.id, naam: k.naam, soort: k.soort, verdieping: k.verdieping,
+      px: rond(k.x / m + ox, 1), py: rond(k.z / m + oy, 1), qr: !!k.qr, qrHoek });
+  }
+  staat = nieuw;
+  // Afbeeldingen die bij een ander plan horen, laten we vallen.
+  for (const n of Object.keys(beelden)) {
+    const v = staat.verdiepingen.find(v => String(v.niveau) === n);
+    const b = beelden[n];
+    if (!v || v.plan.breedtePx !== (b.width || b.naturalWidth)) delete beelden[n];
+  }
+  huidigNiveau = staat.verdiepingen[0].niveau; selectie = null; routePad = null;
+  alles(); zoomPassend();
+  const ontbreekt = staat.verdiepingen.filter(v => v.plan.bestand && !beelden[v.niveau]).map(v => `• ${v.niveau}: ${v.plan.bestand}`);
+  if (ontbreekt.length) toonHint(`Geïmporteerd. Laad de plannen opnieuw (Plan laden): ${ontbreekt.join("  ")}`);
+}
+$("knopNieuw").onclick = () => {
+  if (staat.knopen.length && !confirm("Alles wissen en opnieuw beginnen? (Exporteer eerst als je het wil houden.)")) return;
+  bewaarVoorWijziging();
+  staat = nieuweStaat(); beelden = {}; huidigNiveau = 0; selectie = null; routePad = null;
+  try { for (const s of Object.keys(localStorage)) if (s.startsWith(OPSLAG_SLEUTEL)) localStorage.removeItem(s); } catch (e) {}
+  alles(); zoomPassend();
+};
+
+// ---------------------------------------------------------------------------
+// QR-codes als PDF (A4, 4 per pagina, vectorieel)
+// ---------------------------------------------------------------------------
+$("knopQR").onclick = () => {
+  const lijst = staat.knopen
+    .filter(k => k.soort === "lokaal" && k.qr)
+    .sort((a, b) => a.verdieping - b.verdieping || a.naam.localeCompare(b.naam, "nl", { numeric: true }));
+  if (!lijst.length) return alert("Er zijn nog geen lokalen met een QR-code.");
+  const zonder = lijst.filter(k => k.qrHoek == null);
+  if (zonder.length && !confirm(`${zonder.length} QR-code(s) hebben nog geen richting (${zonder.map(k => k.id).join(", ")}). Toch afdrukken?`)) return;
+  maakQRPDF(lijst);
+};
+function maakQRPDF(lijst) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const B = 105, H = 148.5, QR = 80;
+  lijst.forEach((k, i) => {
+    if (i && i % 4 === 0) pdf.addPage();
+    const kol = i % 2, rij = Math.floor((i % 4) / 2);
+    const x0 = kol * B, y0 = rij * H;
+    // Snijlijnen
+    pdf.setDrawColor(190); pdf.setLineDashPattern([2, 2], 0); pdf.setLineWidth(0.2);
+    if (kol === 0) pdf.line(B, y0 + 4, B, y0 + H - 4);
+    if (rij === 0) pdf.line(x0 + 4, H, x0 + B - 4, H);
+    pdf.setLineDashPattern([], 0);
+    // Titel
+    pdf.setTextColor(20); pdf.setFont("helvetica", "bold"); pdf.setFontSize(30);
+    pdf.text(k.naam, x0 + B / 2, y0 + 20, { align: "center" });
+    // QR-code
+    const code = QR_PREFIX + k.id;
+    const qr = qrcode(0, "M"); qr.addData(code); qr.make();
+    const n = qr.getModuleCount(), cel = QR / n;
+    const qx = x0 + (B - QR) / 2, qy = y0 + 27;
+    pdf.setFillColor(0);
+    for (let r = 0; r < n; r++) {
+      let c = 0;
+      while (c < n) {
+        if (!qr.isDark(r, c)) { c++; continue; }
+        let eind = c; while (eind + 1 < n && qr.isDark(r, eind + 1)) eind++;
+        pdf.rect(qx + c * cel, qy + r * cel, (eind - c + 1) * cel + 0.01, cel + 0.01, "F");
+        c = eind + 1;
+      }
+    }
+    // Onderschrift
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(10); pdf.setTextColor(60);
+    const verd = verdieping(k.verdieping);
+    pdf.text(`${staat.gebouw.naam || staat.gebouw.id || "Gebouw"} · ${verd?.naam ?? "verdieping " + k.verdieping}`, x0 + B / 2, y0 + 116, { align: "center" });
+    pdf.setFont("courier", "normal"); pdf.setFontSize(9);
+    pdf.text(code, x0 + B / 2, y0 + 121, { align: "center" });
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(8); pdf.setTextColor(110);
+    pdf.text(["Plat tegen de muur naast de deur hangen,", "midden van de code op ± 1,40 m hoogte.", "Scan me met de app om de weg te vinden."],
+             x0 + B / 2, y0 + 128, { align: "center" });
+  });
+  download(pdf.output("blob"), `QR_${staat.gebouw.id || "gebouw"}.pdf`);
+}
+
+// ---------------------------------------------------------------------------
+// Start
+// ---------------------------------------------------------------------------
+window.addEventListener("resize", passend);
+(async () => {
+  bouwGereedschap();
+  await herstel();
+  passend();
+  alles();
+  zoomPassend();
+})();
+
+// Voor automatische tests en de console.
+window.binnenNav = { get staat() { return staat; }, planNaarScherm, naarJSON, importeer, controleer, kortsteRoute, zetPlanBeeld };
+</script>
+</body>
+</html>
