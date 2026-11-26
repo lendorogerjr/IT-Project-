@@ -1,13 +1,20 @@
-# Stap 1: Opzet
+# Stap 2: Editor, basisopmaak
 
-De basis van het project: de routecalculator, het bouwscript en de testen.
+Het venster krijgt zijn indeling, nog zonder stijl of werking:
 
-- `src/main/kotlin/routeberekening/…`: de calculator (model, netwerk, kosten, toegang, zoeken, aanwijzingen).
-  Ten opzichte van jullie calculator zijn twee fouten opgelost: `Routezoeker` zoekt altijd in het hele netwerk
-  (eerst op dezelfde verdieping zoeken gaf soms een veel langere route) en `AanwijzingMaker` geeft ook
-  links/rechts bij een bocht op een hulpnode.
-- `run.sh`: bouwt alles met `kotlinc` en start de interface (`bash run.sh`) of de testen (`bash run.sh test`).
-- `src/test/…`: testrunner zonder bibliotheken met T1 tot T11.
-- `editor/Main.kt`: opent een leeg venster, om te zien dat Kotlin en Swing werken.
+- `Modus.kt`: de vier modi van de kaart (selecteren, nodes plaatsen, verbinden, schaal instellen).
+- `Hoofdvenster.kt`: menubalk, werkbalk met de modi, lijst "Plannen" links, kaart in het midden,
+  tabbladen Node en Route rechts, statusbalk onderaan.
+- `KaartPaneel.kt`: het middenvlak; toont voorlopig enkel de gekozen modus.
 
-**Testen:** `bash run.sh test` (15 geslaagd) en `bash run.sh` (een klein venster).
+**Testen:** `bash run.sh`, klik op de modi: de statusbalk en de kaart volgen.
+
+## Bestanden ten opzichte van stap 1
+
+Nieuw:
+- `src/main/kotlin/routeberekening/editor/Hoofdvenster.kt`
+- `src/main/kotlin/routeberekening/editor/KaartPaneel.kt`
+- `src/main/kotlin/routeberekening/editor/Modus.kt`
+
+Gewijzigd:
+- `src/main/kotlin/routeberekening/editor/Main.kt`
