@@ -1,20 +1,22 @@
-# Stap 2: Editor, basisopmaak
+# Stap 3: Opmaak van de editor
 
-Het venster krijgt zijn indeling, nog zonder stijl of werking:
+De stijl, los van de werking, zodat het venster en later de export dezelfde opmaak delen:
 
-- `Modus.kt`: de vier modi van de kaart (selecteren, nodes plaatsen, verbinden, schaal instellen).
-- `Hoofdvenster.kt`: menubalk, werkbalk met de modi, lijst "Plannen" links, kaart in het midden,
-  tabbladen Node en Route rechts, statusbalk onderaan.
-- `KaartPaneel.kt`: het middenvlak; toont voorlopig enkel de gekozen modus.
+- `Stijl.kt` (nieuw): `Tekenaar` met de kleuren en symbolen per soort node (zoals in "Node Plaatsing":
+  vierkant = eindpunt, cirkel = route, streepje = hulpnode, rood = deur, blauw = trap, groen = lift),
+  labels, genummerde bolletjes, de `Legende`, `TypeWeergave` voor keuzelijsten, en `formulier()` voor dialogen.
+- `Main.kt`: het uiterlijk van het besturingssysteem (op de Mac het Mac-uiterlijk).
+- `Hoofdvenster.kt`: legende links, keuzelijst met de soorten nodes in de werkbalk, marges, positie in de statusbalk.
+- `KaartPaneel.kt`: achtergrondkleur en vloeiende tekst.
 
-**Testen:** `bash run.sh`, klik op de modi: de statusbalk en de kaart volgen.
+**Testen:** `bash run.sh`: legende en keuzelijst met soorten nodes zijn zichtbaar.
 
-## Bestanden ten opzichte van stap 1
+## Bestanden ten opzichte van stap 2
 
 Nieuw:
-- `src/main/kotlin/routeberekening/editor/Hoofdvenster.kt`
-- `src/main/kotlin/routeberekening/editor/KaartPaneel.kt`
-- `src/main/kotlin/routeberekening/editor/Modus.kt`
+- `src/main/kotlin/routeberekening/editor/Stijl.kt`
 
 Gewijzigd:
+- `src/main/kotlin/routeberekening/editor/Hoofdvenster.kt`
+- `src/main/kotlin/routeberekening/editor/KaartPaneel.kt`
 - `src/main/kotlin/routeberekening/editor/Main.kt`
