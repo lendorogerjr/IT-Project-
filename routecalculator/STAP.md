@@ -1,22 +1,29 @@
-# Stap 3: Opmaak van de editor
+# Stap 4: Kaarten inladen
 
-De stijl, los van de werking, zodat het venster en later de export dezelfde opmaak delen:
+De eerste invoer, deel 1: plattegronden inladen.
 
-- `Stijl.kt` (nieuw): `Tekenaar` met de kleuren en symbolen per soort node (zoals in "Node Plaatsing":
-  vierkant = eindpunt, cirkel = route, streepje = hulpnode, rood = deur, blauw = trap, groen = lift),
-  labels, genummerde bolletjes, de `Legende`, `TypeWeergave` voor keuzelijsten, en `formulier()` voor dialogen.
-- `Main.kt`: het uiterlijk van het besturingssysteem (op de Mac het Mac-uiterlijk).
-- `Hoofdvenster.kt`: legende links, keuzelijst met de soorten nodes in de werkbalk, marges, positie in de statusbalk.
-- `KaartPaneel.kt`: achtergrondkleur en vloeiende tekst.
+- `Plan.kt` (nieuw): één verdieping van één gebouw, met afbeelding en schaal (meter per pixel), en het tekenen
+  van de plattegrond (of een raster als er geen afbeelding is).
+- `Project.kt` (nieuw): de kaart met gebouwen en plannen, opslaan en openen als `.json`
+  (afbeeldingen relatief tegenover het kaartbestand).
+- `Json.kt` (nieuw): kleine JSON-lezer en -schrijver zonder bibliotheek.
+- `KaartPaneel.kt`: plan tonen, zoomen (scrollwiel), schuiven (slepen), *Passend*, schaal instellen met twee klikken.
+- `Hoofdvenster.kt`: menu Bestand (nieuw, openen, opslaan) en Kaart (plan toevoegen, afbeelding wijzigen,
+  schaal, plan verwijderen), plannenlijst, vragen om op te slaan bij afsluiten.
 
-**Testen:** `bash run.sh`: legende en keuzelijst met soorten nodes zijn zichtbaar.
+**Testen:** Kaart > Plan toevoegen, kies een png van een grondplan, stel de schaal in, sla op en open opnieuw.
+`bash run.sh test` (19 geslaagd).
 
-## Bestanden ten opzichte van stap 2
+## Bestanden ten opzichte van stap 3
 
 Nieuw:
-- `src/main/kotlin/routeberekening/editor/Stijl.kt`
+- `src/main/kotlin/routeberekening/editor/Json.kt`
+- `src/main/kotlin/routeberekening/editor/Plan.kt`
+- `src/main/kotlin/routeberekening/editor/Project.kt`
+- `src/test/kotlin/routeberekening/EditorTests.kt`
 
 Gewijzigd:
+- `README.md`
 - `src/main/kotlin/routeberekening/editor/Hoofdvenster.kt`
 - `src/main/kotlin/routeberekening/editor/KaartPaneel.kt`
-- `src/main/kotlin/routeberekening/editor/Main.kt`
+- `src/test/kotlin/routeberekening/Tests.kt`

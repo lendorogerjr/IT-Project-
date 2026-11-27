@@ -24,6 +24,14 @@ bash run.sh test     # de testen draaien
 
 De eerste keer bouwen duurt een halve minuut. In VS Code kan het ook via Terminal > Taak uitvoeren.
 
+## Werkwijze
+
+1. **Kaart > Plan toevoegen**: gebouwcode (bv. `B`), gebouwnaam, verdieping en de plattegrond (png of jpg).
+   Een pdf zet je eerst om naar png (Voorvertoning > Archief > Exporteer). Zonder afbeelding krijg je een leeg raster.
+2. **Schaal instellen**: klik twee punten waarvan je de echte afstand kent en geef die in meter.
+
+Zoomen met het scrollwiel, schuiven met de rechtermuisknop, *Passend* toont het hele plan.
+
 ## Pakketten
 
 | Pakket | Inhoud |
