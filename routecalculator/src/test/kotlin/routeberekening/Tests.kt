@@ -23,6 +23,7 @@ fun controleer(naam: String, r: Route?, kost: Double?, ids: List<String>?) {
 fun main() {
     calculatorTests()
     kaartTests()
+    nodeTests()
     println("\nResultaat: $geslaagd geslaagd, $mislukt mislukt")
     if (mislukt > 0) exitProcess(1)
 }

@@ -6,6 +6,12 @@ import routeberekening.editor.Project
 import java.awt.image.BufferedImage
 import java.io.File
 import javax.imageio.ImageIO
+import routeberekening.editor.ENode
+import routeberekening.editor.EVerbinding
+import routeberekening.editor.Voorbeeld
+import routeberekening.editor.nieuweId
+import routeberekening.editor.verbindTrappenEnLiften
+import routeberekening.model.NodeType
 
 // Testen voor de editor, per stap.
 
@@ -28,4 +34,24 @@ fun kaartTests() {
     val t = terug.plannen.single()
     controleer("Plan terug geopend", waarschuwingen.isEmpty() && t.beeld != null && t.metersPerPixel == 0.025 && terug.gebouwNaam("B") == "Blok B")
     map.deleteRecursively()
+}
+
+fun nodeTests() {
+    println("--- Stap 5: nodes")
+    val v = Voorbeeld.project()
+    controleer("Voorbeeld: 26 nodes en 28 verbindingen", v.nodes.size == 26 && v.verbindingen.size == 28)
+    controleer("Nieuwe id", v.nieuweId("kaai", 1, NodeType.ROUTE) == "1_r1")
+
+    val p = Project()
+    p.plannen += Plan("A", 0, null, 100, 100, 0.1, true)
+    for (vd in 0..2) p.nodes += ENode(p.nieuweId("A", vd, NodeType.TRAP), "A", NodeType.TRAP, vd, 10.0, 10.0, "Trap A")
+    controleer("Trappen met dezelfde naam verbinden", p.verbindTrappenEnLiften() == 2 && p.verbindTrappenEnLiften() == 0)
+
+    val f = File.createTempFile("kaart", ".json")
+    v.nodes.first { it.id == "0_deurB" }.gesloten = true
+    v.opslaan(f)
+    val (terug, _) = Project.open(f)
+    controleer("Nodes opslaan en openen", terug.nodes.size == 26 && terug.verbindingen.size == 28 &&
+        terug.nodes.first { it.id == "0_lokF" }.toegang == setOf("leerkracht") && terug.nodes.first { it.id == "0_deurB" }.gesloten)
+    f.delete()
 }

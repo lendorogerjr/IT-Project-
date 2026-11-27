@@ -1,29 +1,29 @@
-# Stap 4: Kaarten inladen
+# Stap 5: Nodes toevoegen
 
-De eerste invoer, deel 1: plattegronden inladen.
+De eerste invoer, deel 2: het netwerk op de plattegrond tekenen.
 
-- `Plan.kt` (nieuw): één verdieping van één gebouw, met afbeelding en schaal (meter per pixel), en het tekenen
-  van de plattegrond (of een raster als er geen afbeelding is).
-- `Project.kt` (nieuw): de kaart met gebouwen en plannen, opslaan en openen als `.json`
-  (afbeeldingen relatief tegenover het kaartbestand).
-- `Json.kt` (nieuw): kleine JSON-lezer en -schrijver zonder bibliotheek.
-- `KaartPaneel.kt`: plan tonen, zoomen (scrollwiel), schuiven (slepen), *Passend*, schaal instellen met twee klikken.
-- `Hoofdvenster.kt`: menu Bestand (nieuw, openen, opslaan) en Kaart (plan toevoegen, afbeelding wijzigen,
-  schaal, plan verwijderen), plannenlijst, vragen om op te slaan bij afsluiten.
+- `Nodes.kt` (nieuw): `ENode` en `EVerbinding`, hulpfuncties (id maken, verwijderen, trappen en liften met
+  dezelfde naam tussen verdiepingen verbinden) en het tekenen van nodes en verbindingen.
+- `NodePaneel.kt` (nieuw): tabblad Node: naam, type, toegang per profiel, gesloten, verwijderen.
+- `Voorbeeld.kt` (nieuw): het testnetwerk als kaart (Bestand > Voorbeeld openen).
+- `Project.kt`: profielen, nodes en verbindingen, ook bij opslaan en openen.
+- `KaartPaneel.kt`: nodes plaatsen, selecteren, verslepen, verbinden, Delete, uitlijnen op rechte hoeken, voorproefje.
+- `Hoofdvenster.kt`: plaatsen, verbinden (ook tussen gebouwen met een afstand), profielen, automatisch verbinden.
 
-**Testen:** Kaart > Plan toevoegen, kies een png van een grondplan, stel de schaal in, sla op en open opnieuw.
-`bash run.sh test` (19 geslaagd).
+**Testen:** Bestand > Voorbeeld openen, of teken zelf een gang met lokalen, deuren en een trap.
+`bash run.sh test` (23 geslaagd).
 
-## Bestanden ten opzichte van stap 3
+## Bestanden ten opzichte van stap 4
 
 Nieuw:
-- `src/main/kotlin/routeberekening/editor/Json.kt`
-- `src/main/kotlin/routeberekening/editor/Plan.kt`
-- `src/main/kotlin/routeberekening/editor/Project.kt`
-- `src/test/kotlin/routeberekening/EditorTests.kt`
+- `src/main/kotlin/routeberekening/editor/NodePaneel.kt`
+- `src/main/kotlin/routeberekening/editor/Nodes.kt`
+- `src/main/kotlin/routeberekening/editor/Voorbeeld.kt`
 
 Gewijzigd:
 - `README.md`
 - `src/main/kotlin/routeberekening/editor/Hoofdvenster.kt`
 - `src/main/kotlin/routeberekening/editor/KaartPaneel.kt`
+- `src/main/kotlin/routeberekening/editor/Project.kt`
+- `src/test/kotlin/routeberekening/EditorTests.kt`
 - `src/test/kotlin/routeberekening/Tests.kt`

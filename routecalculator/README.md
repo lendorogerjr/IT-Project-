@@ -29,8 +29,17 @@ De eerste keer bouwen duurt een halve minuut. In VS Code kan het ook via Termina
 1. **Kaart > Plan toevoegen**: gebouwcode (bv. `B`), gebouwnaam, verdieping en de plattegrond (png of jpg).
    Een pdf zet je eerst om naar png (Voorvertoning > Archief > Exporteer). Zonder afbeelding krijg je een leeg raster.
 2. **Schaal instellen**: klik twee punten waarvan je de echte afstand kent en geef die in meter.
+3. **Nodes plaatsen**: kies het type in de werkbalk en klik op de kaart.
+   - Met *Automatisch verbinden* wordt elke nieuwe node verbonden met de geselecteerde node: zo teken je een gang in één keer.
+   - Een nieuwe node lijnt uit op de geselecteerde node (rechte gangen). Shift = altijd een rechte hoek.
+   - Een eindpunt vraagt een lokaalcode. Een trap of lift vraagt een naam: geef op elke verdieping dezelfde naam
+     (bv. `Trap A`), dan worden de verdiepingen automatisch verbonden. Een trap is standaard niet voor `rolstoel`.
+4. **Verbinden**: klik twee nodes; twee verbonden nodes aanklikken wist de verbinding.
+   Tussen gebouwen: ingang aanklikken, ander plan kiezen, andere ingang aanklikken, afstand in meter ingeven.
+5. **Selecteren**: node verslepen, eigenschappen aanpassen in het tabblad *Node*. Delete verwijdert.
 
 Zoomen met het scrollwiel, schuiven met de rechtermuisknop, *Passend* toont het hele plan.
+**Bestand > Voorbeeld openen** laadt het testnetwerk (3 verdiepingen, 2 trappen, 1 lift).
 
 ## Pakketten
 

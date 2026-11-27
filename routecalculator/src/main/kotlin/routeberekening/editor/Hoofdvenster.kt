@@ -15,6 +15,7 @@ import javax.swing.ButtonGroup
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JFileChooser
 import javax.swing.JFrame
@@ -45,8 +46,12 @@ class Hoofdvenster : JFrame() {
         private set
     var huidigPlan: Plan? = null
     private var laatsteMap: File? = null
+    var geselecteerd: ENode? = null
+        private set
+    var verbindVan: ENode? = null
 
     val kaart = KaartPaneel(this)
+    private val nodePaneel = NodePaneel(this)
     private val planModel = DefaultListModel<Plan>()
     private val planLijst = JList(planModel)
     private val status = JLabel(" ")
@@ -89,7 +94,10 @@ class Hoofdvenster : JFrame() {
             add(Legende(), BorderLayout.SOUTH)
         }
 
-        tabs.addTab("Node", JLabel("Eigenschappen van de geselecteerde node (stap 5)"))
+        tabs.addTab("Node", JScrollPane(nodePaneel).apply {
+            border = null
+            horizontalScrollBarPolicy = JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+        })
         tabs.addTab("Route", JLabel("Vertrek, bestemming en profiel (stap 7)"))
         tabs.preferredSize = Dimension(330, 0)
 
@@ -107,7 +115,7 @@ class Hoofdvenster : JFrame() {
         setSize(1400, 860)
         setLocationRelativeTo(null)
         laad(Project())
-        zetModus(Modus.SELECTEREN)
+        zetModus(Modus.PLAATSEN)
     }
 
     // ---------- opbouw van het venster ----------
@@ -124,6 +132,8 @@ class Hoofdvenster : JFrame() {
             add(item("Opslaan", KeyEvent.VK_S) { opslaan(false) })
             add(item("Opslaan als…") { opslaan(true) })
             addSeparator()
+            add(item("Voorbeeld openen (testnetwerk)") { if (magVerdergaan()) laad(Voorbeeld.project()) })
+            addSeparator()
             add(item("Afsluiten", KeyEvent.VK_Q) { if (magVerdergaan()) exitProcess(0) })
         }
         val kaartMenu = JMenu("Kaart").apply {
@@ -131,6 +141,13 @@ class Hoofdvenster : JFrame() {
             add(item("Afbeelding van dit plan wijzigen…") { afbeeldingWijzigen() })
             add(item("Schaal van dit plan instellen") { zetModus(Modus.SCHAAL) })
             add(item("Dit plan verwijderen…") { planVerwijderen() })
+            addSeparator()
+            add(item("Trappen en liften tussen verdiepingen verbinden") {
+                val n = project.verbindTrappenEnLiften()
+                wijzig()
+                melding("$n verbinding(en) tussen verdiepingen toegevoegd.")
+            })
+            add(item("Profielen…") { profielen() })
         }
         return JMenuBar().apply { add(bestand); add(kaartMenu) }
     }
@@ -151,12 +168,18 @@ class Hoofdvenster : JFrame() {
                 typeKeuze.maximumSize = Dimension(170, 30)
                 typeKeuze.toolTipText = "Soort node die je plaatst"
                 typeKeuze.addActionListener {
+                    kaart.plaatsType = typeKeuze.selectedItem as NodeType
                     zetModus(Modus.PLAATSEN)
                 }
                 balk.add(typeKeuze)
                 balk.addSeparator()
             }
         }
+        balk.addSeparator()
+        val auto = JCheckBox("Automatisch verbinden", true)
+        auto.toolTipText = "Een nieuwe node wordt verbonden met de geselecteerde node, zo teken je een gang in één keer"
+        auto.addActionListener { kaart.autoVerbinden = auto.isSelected }
+        balk.add(auto)
         balk.addSeparator()
         balk.add(JButton("Passend").apply { addActionListener { kaart.passend() } })
         return balk
@@ -170,8 +193,11 @@ class Hoofdvenster : JFrame() {
 
     fun toonHulp() {
         status.text = when {
-            huidigPlan == null -> "Voeg eerst een plan toe (Kaart > Plan toevoegen)."
-            kaart.modus == Modus.SELECTEREN -> "Slepen = schuiven, scrollwiel = zoomen, Passend = heel het plan tonen."
+            huidigPlan == null -> "Voeg eerst een plan toe (Kaart > Plan toevoegen) of open het voorbeeld (Bestand > Voorbeeld openen)."
+            kaart.modus == Modus.SELECTEREN -> "Klik een node om hem te selecteren, sleep om te verplaatsen. Rechts slepen = schuiven, scrollwiel = zoomen, Delete = verwijderen."
+            kaart.modus == Modus.PLAATSEN -> "Klik om een ${Tekenaar.typeNaam(kaart.plaatsType).lowercase()} te plaatsen. Lijnt uit op de geselecteerde node, Shift = rechte hoek. Klik een bestaande node om van daar verder te tekenen."
+            kaart.modus == Modus.VERBINDEN && verbindVan == null -> "Klik de eerste node. Twee verbonden nodes aanklikken wist de verbinding."
+            kaart.modus == Modus.VERBINDEN -> "Klik de tweede node. Je mag eerst een ander plan kiezen (trap, lift of ander gebouw). Esc = annuleren."
             kaart.modus == Modus.SCHAAL -> "Klik twee punten waarvan je de echte afstand kent, bijvoorbeeld de lengte van een gang of muur."
             else -> "${kaart.modus.label}: komt in een volgende stap."
         }
@@ -183,10 +209,13 @@ class Hoofdvenster : JFrame() {
 
     private fun laad(p: Project) {
         project = p
+        geselecteerd = null
+        verbindVan = null
         vulPlannen()
         huidigPlan = null
         planModel.elements().toList().firstOrNull()?.let { planLijst.setSelectedValue(it, true) }
         huidigPlan = planLijst.selectedValue
+        nodePaneel.toon(null)
         titel()
         SwingUtilities.invokeLater { kaart.passend() }
         toonHulp()
@@ -225,7 +254,7 @@ class Hoofdvenster : JFrame() {
         plan.metersPerPixel = meters / pixels
         plan.schaalIngesteld = true
         wijzig()
-        zetModus(Modus.SELECTEREN)
+        zetModus(Modus.PLAATSEN)
         melding(String.format("Schaal ingesteld: 1 m = %.1f pixels.", 1 / plan.metersPerPixel))
     }
 
@@ -299,13 +328,15 @@ class Hoofdvenster : JFrame() {
 
     private fun planVerwijderen() {
         val plan = huidigPlan ?: return
-        val vraag = "${project.planLabel(plan)} verwijderen?"
+        val vraag = "${project.planLabel(plan)} verwijderen, samen met ${project.nodesOp(plan).size} node(s)?"
         if (JOptionPane.showConfirmDialog(this, vraag, "Plan verwijderen", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return
+        project.nodesOp(plan).forEach { project.verwijder(it) }
         project.plannen.remove(plan)
         huidigPlan = null
         vulPlannen()
         planModel.elements().toList().firstOrNull()?.let { planLijst.setSelectedValue(it, true) }
         huidigPlan = planLijst.selectedValue
+        selecteer(null)
         wijzig()
         kaart.passend()
     }
@@ -357,5 +388,96 @@ class Hoofdvenster : JFrame() {
             JOptionPane.NO_OPTION -> true
             else -> false
         }
+    }
+
+    // ---------- nodes ----------
+
+    fun selecteer(n: ENode?) {
+        geselecteerd = n
+        nodePaneel.toon(n)
+        kaart.repaint()
+    }
+
+    fun nodeVerplaatst() {
+        wijzig()
+        nodePaneel.werkInfoBij()
+    }
+
+    fun plaatsNode(p: Point2D.Double, plan: Plan) {
+        val type = kaart.plaatsType
+        var naam: String? = null
+        if (type == NodeType.EINDPUNT || type == NodeType.TRAP || type == NodeType.LIFT || type == NodeType.INGANG) {
+            val vraag = when (type) {
+                NodeType.EINDPUNT -> "Lokaalcode of naam van het eindpunt (bv. B2.14):"
+                NodeType.INGANG -> "Naam van de ingang (bv. Hoofdingang):"
+                else -> "Naam van de ${Tekenaar.typeNaam(type).lowercase()}. Geef op elke verdieping dezelfde naam (bv. ${if (type == NodeType.TRAP) "Trap A" else "Lift 1"}):"
+            }
+            naam = JOptionPane.showInputDialog(this, vraag, Tekenaar.typeNaam(type), JOptionPane.QUESTION_MESSAGE) ?: return
+            naam = naam.trim().ifBlank { null }
+        }
+        val toegang = project.profielen.toMutableSet()
+        if (type == NodeType.TRAP) toegang.remove("rolstoel")
+        val n = ENode(project.nieuweId(plan.gebouw, plan.verdieping, type), plan.gebouw, type, plan.verdieping, p.x, p.y, naam, toegang)
+        project.nodes += n
+        val vorige = geselecteerd
+        if (kaart.autoVerbinden && vorige != null && project.opPlan(vorige, plan)) project.verbindingen += EVerbinding(vorige.sleutel, n.sleutel)
+        val extra = if (type == NodeType.TRAP || type == NodeType.LIFT) project.verbindTrappenEnLiften() else 0
+        selecteer(n)
+        wijzig()
+        if (extra > 0) melding("${n.naam} is automatisch verbonden met dezelfde ${Tekenaar.typeNaam(type).lowercase()} op een andere verdieping.")
+        else if (type == NodeType.TRAP && "rolstoel" in project.profielen) melding("Trap geplaatst. Het profiel rolstoel heeft standaard geen toegang tot een trap.")
+    }
+
+    fun verbindKlik(n: ENode) {
+        val a = verbindVan
+        when {
+            a == null -> { verbindVan = n; toonHulp() }
+            a === n -> { verbindVan = null; toonHulp() }
+            project.verbonden(a.sleutel, n.sleutel) -> {
+                project.verbindingen.removeAll { it.verbindt(a.sleutel, n.sleutel) }
+                verbindVan = null
+                wijzig()
+                melding("Verbinding ${a.id} – ${n.id} verwijderd.")
+            }
+            else -> {
+                var lengte: Double? = null
+                if (a.gebouw != n.gebouw) {
+                    lengte = leesGetal(JOptionPane.showInputDialog(this, "Deze verbinding gaat tussen twee gebouwen.\nHoeveel meter is het lopen van ${a.naam ?: a.id} naar ${n.naam ?: n.id}?", "Afstand tussen gebouwen", JOptionPane.QUESTION_MESSAGE))
+                    if (lengte == null || lengte <= 0) { verbindVan = null; toonHulp(); return }
+                }
+                project.verbindingen += EVerbinding(a.sleutel, n.sleutel, lengte)
+                verbindVan = null
+                wijzig()
+                val waarschuwing = if (a.gebouw == n.gebouw && a.verdieping != n.verdieping && !(a.type == n.type && (a.type == NodeType.TRAP || a.type == NodeType.LIFT)))
+                    " Let op: tussen verdiepingen hoort een verbinding van trap naar trap of lift naar lift." else ""
+                melding("Verbinding ${a.id} – ${n.id} gemaakt.$waarschuwing")
+            }
+        }
+        kaart.repaint()
+    }
+
+    fun verwijderGeselecteerd() {
+        val n = geselecteerd ?: return
+        project.verwijder(n)
+        if (verbindVan === n) verbindVan = null
+        selecteer(null)
+        wijzig()
+        melding("Node ${n.id} verwijderd.")
+    }
+
+    private fun profielen() {
+        val antwoord = JOptionPane.showInputDialog(
+            this, "Profielen, gescheiden door komma's (bv. leerling, leerkracht, rolstoel, personeel).\nEen nieuw profiel krijgt overal toegang; pas daarna per node aan.",
+            project.profielen.joinToString(", ")
+        ) ?: return
+        val nieuw = antwoord.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (nieuw.isEmpty()) return
+        val toegevoegd = nieuw - project.profielen.toSet()
+        val weg = project.profielen.toSet() - nieuw.toSet()
+        for (n in project.nodes) { n.toegang += toegevoegd; n.toegang -= weg }
+        project.profielen.clear()
+        project.profielen += nieuw
+        nodePaneel.toon(geselecteerd)
+        wijzig()
     }
 }
